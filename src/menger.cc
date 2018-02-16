@@ -1,4 +1,5 @@
 #include "menger.h"
+#include <iostream>
 
 namespace {
 	const int kMinLevel = 0;
@@ -109,10 +110,8 @@ Menger::generate_geometry(std::vector<glm::vec4>& vertices,
                           std::vector<glm::uvec3>& faces) const
 {
 	glm::vec3 offset(.5, .5f, -7.5f);
-	create_sponge(vertices, faces, offset + glm::vec3(-.5f,-.5f,-.5f), offset + glm::vec3(.5f,.5f,.5f), 4);
-	// vertices.push_back(glm::vec4(-0.5f, -0.5f, -0.5f, 1.0f));
-	// vertices.push_back(glm::vec4(0.5f, -0.5f, -0.5f, 1.0f));
-	// vertices.push_back(glm::vec4(0.0f, 0.5f, -0.5f, 1.0f));
-	// faces.push_back(glm::uvec3(0, 1, 2));
+	create_sponge(vertices, faces, offset + glm::vec3(-.5f,-.5f,-.5f), offset + glm::vec3(.5f,.5f,.5f), nesting_level_);
+	
+	// printf("asdfasdf\n");
 }
 

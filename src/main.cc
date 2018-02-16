@@ -213,7 +213,7 @@ int main(int argc, char* argv[])
 	std::vector<glm::uvec3> obj_faces;
 
         //FIXME: Create the geometry from a Menger object.
-        CreateTriangle(obj_vertices, obj_faces);
+        // CreateTriangle(obj_vertices, obj_faces);
 
 	g_menger->set_nesting_level(1);
 
@@ -341,7 +341,16 @@ int main(int argc, char* argv[])
 			g_menger->generate_geometry(obj_vertices, obj_faces);
 			g_menger->set_clean();
 
+			CHECK_GL_ERROR(glBufferData(GL_ARRAY_BUFFER,
+				sizeof(float) * obj_vertices.size() * 4, obj_vertices.data(),
+				GL_STATIC_DRAW));
+
+			CHECK_GL_ERROR(glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+				sizeof(uint32_t) * obj_faces.size() * 3,
+				obj_faces.data(), GL_STATIC_DRAW));
+
 			// FIXME: Upload your vertex data here.
+
 		}
 
 		// Compute the projection matrix.
@@ -376,6 +385,7 @@ int main(int argc, char* argv[])
 
 		// Poll and swap.
 		glfwPollEvents();
+		
 		glfwSwapBuffers(window);
 	}
 	glfwDestroyWindow(window);

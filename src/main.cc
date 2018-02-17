@@ -131,15 +131,21 @@ KeyCallback(GLFWwindow* window,
 	else if (key == GLFW_KEY_S && mods == GLFW_MOD_CONTROL && action == GLFW_RELEASE) {
 		// FIXME: save geometry to OBJ
 	} else if (key == GLFW_KEY_W && action != GLFW_RELEASE) {
-		// FIXME: WASD
+		g_camera.zoom(1);
 	} else if (key == GLFW_KEY_S && action != GLFW_RELEASE) {
+		g_camera.zoom(-1);
 	} else if (key == GLFW_KEY_A && action != GLFW_RELEASE) {
+		g_camera.strafe_tangent(-1);
 	} else if (key == GLFW_KEY_D && action != GLFW_RELEASE) {
+		g_camera.strafe_tangent(1);
 	} else if (key == GLFW_KEY_LEFT && action != GLFW_RELEASE) {
-		// FIXME: Left Right Up and Down
+		g_camera.roll(-1);
 	} else if (key == GLFW_KEY_RIGHT && action != GLFW_RELEASE) {
+		g_camera.roll(1);
 	} else if (key == GLFW_KEY_DOWN && action != GLFW_RELEASE) {
+		g_camera.strafe_up(-1);
 	} else if (key == GLFW_KEY_UP && action != GLFW_RELEASE) {
+		g_camera.strafe_up(1);
 	} else if (key == GLFW_KEY_C && action != GLFW_RELEASE) {
 		// FIXME: FPS mode on/off
 	}
@@ -169,12 +175,27 @@ MousePosCallback(GLFWwindow* window, double mouse_x, double mouse_y)
 	if (!g_mouse_pressed)
 		return;
 	if (g_current_button == GLFW_MOUSE_BUTTON_LEFT) {
-		// FIXME: left drag
+		
 	} else if (g_current_button == GLFW_MOUSE_BUTTON_RIGHT) {
-		// FIXME: middle drag
+		if(g_camera.last_y > mouse_y) {
+			g_camera.zoom(1);
+		} else if(g_camera.last_y < mouse_y) {
+			g_camera.zoom(-1);
+		}
 	} else if (g_current_button == GLFW_MOUSE_BUTTON_MIDDLE) {
-		// FIXME: right drag
+		if(g_camera.last_y > mouse_y) {
+			g_camera.strafe_up(1);
+		} else if(g_camera.last_y < mouse_y) {
+			g_camera.strafe_up(-1);
+		}
+		if(g_camera.last_x > mouse_x) {
+			g_camera.strafe_tangent(-1);
+		} else if(g_camera.last_x < mouse_x) {
+			g_camera.strafe_tangent(1);
+		}
 	}
+	g_camera.last_y = mouse_y;
+	g_camera.last_x = mouse_x;
 }
 
 void

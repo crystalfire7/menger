@@ -109,8 +109,7 @@ void
 Menger::generate_geometry(std::vector<glm::vec4>& vertices,
                           std::vector<glm::uvec3>& faces) const
 {
-	glm::vec3 offset(.5, .5f, -7.5f);
-	create_sponge(vertices, faces, offset + glm::vec3(-.5f,-.5f,-.5f), offset + glm::vec3(.5f,.5f,.5f), nesting_level_);
+	create_sponge(vertices, faces, glm::vec3(-.5f,-.5f,-.5f), glm::vec3(.5f,.5f,.5f), nesting_level_);
 	
 	// printf("asdfasdf\n");
 }

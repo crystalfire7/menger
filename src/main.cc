@@ -87,7 +87,10 @@ in vec4 world_position;
 out vec4 fragment_color;
 void main()
 {
-	fragment_color = vec4(1.0, 0.0, 0.0, 1.0);
+	float x = gl_FragCoord.x;
+	float y = gl_FragCoord.y;
+	float f = mod((floor(sin(x*.314159265)) + 1) + (floor(sin(y*.314159265)) + 1), 2); 
+	fragment_color = vec4(f, f, f, 1.0);
 }
 )zzz";
 
@@ -429,7 +432,6 @@ int main(int argc, char* argv[])
 	glm::vec4 light_position = glm::vec4(10.0f, 10.0f, 10.0f, 1.0f);
 	float aspect = 0.0f;
 	float theta = 0.0f;
-	printf("lmao\n");
 	while (!glfwWindowShouldClose(window)) {
 		// Setup some basic window stuff.
 		glfwGetFramebufferSize(window, &window_width, &window_height);

@@ -46,9 +46,11 @@ R"zzz(#version 330 core
 layout (triangles) in;
 layout (triangle_strip, max_vertices = 3) out;
 uniform mat4 projection;
+uniform mat4 view;
 in vec4 vs_light_direction[];
 flat out vec4 normal;
 out vec4 light_direction;
+out vec4 world_position;
 void main()
 {
 	int n = 0;
@@ -56,6 +58,7 @@ void main()
 	for (n = 0; n < gl_in.length(); n++) {
 		light_direction = vs_light_direction[n];
 		gl_Position = projection * gl_in[n].gl_Position;
+		world_position = inverse(view) * gl_in[n].gl_Position;
 		EmitVertex();
 	}
 	EndPrimitive();
@@ -84,13 +87,20 @@ R"zzz(#version 330 core
 in vec4 normal;
 in vec4 light_direction;
 in vec4 world_position;
+uniform mat4 view;
+uniform mat4 projection;
 out vec4 fragment_color;
 void main()
 {
-	float x = gl_FragCoord.x;
-	float y = gl_FragCoord.y;
-	float f = mod((floor(sin(x*.314159265)) + 1) + (floor(sin(y*.314159265)) + 1), 2); 
-	fragment_color = vec4(f, f, f, 1.0);
+	float x = world_position.x / world_position.w;
+	float y = world_position.z / world_position.w;
+	// float f = mod(floor(mod(x,2)) + floor(mod(y,x)), 2);
+	float f = mod((floor(sin(x*3.14159265)) + 1) + (floor(sin(y*3.14159265)) + 1), 2); 
+	vec4 color = vec4(f, f, f, 1.0);
+	fragment_color = color;
+	// float dot_nl = dot(normalize(light_direction), normalize(projection * view * vec4(0,1.0f,0, 1.0f)));
+	// dot_nl = clamp(dot_nl, 0.0, 1.0);
+	// fragment_color = clamp(dot_nl * color, 0.0, 1.0);
 }
 )zzz";
 
@@ -103,6 +113,10 @@ CreateFloor(std::vector<glm::vec4>& vertices,
 	vertices.push_back(glm::vec4(0, 0, 1.0f, 0));
 	vertices.push_back(glm::vec4(-1.0, 0, 0, 0));
 	vertices.push_back(glm::vec4(0, 0, -1.0f, 0));
+	// vertices.push_back(glm::vec4(5.0f, -2.0f, 0, 1.0f));
+	// vertices.push_back(glm::vec4(0, -2.0f, 5.0f, 1.0f));
+	// vertices.push_back(glm::vec4(-5.0, -2.0f, 0, 1.0f));
+	// vertices.push_back(glm::vec4(0, -2.0f, -5.0f, 1.0f));
 	indices.push_back(glm::uvec3(0, 1, 2));
 	indices.push_back(glm::uvec3(0, 2, 3));
 	indices.push_back(glm::uvec3(0, 3, 4));

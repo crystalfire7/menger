@@ -1,6 +1,8 @@
 #include "camera.h"
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/rotate_vector.hpp>
+#include "glm/ext.hpp"
+#include <iostream>
 
 namespace {
 	float pan_speed = 0.1f;
@@ -36,19 +38,19 @@ void Camera::roll(int direction) {
 }
 
 void Camera::rotate(float dx, float dy){
-	glm::vec3 center = eye_ + camera_distance_ * look_;
+	glm::vec3 center = eye_ + camera_distance_ * look_; // center
 	glm::vec3 tangent = glm::normalize(glm::cross(look_, up_));
 	glm::vec3 newup = glm::normalize(glm::cross(tangent, look_));
 
 	glm::vec3 dir_world = glm::normalize(dx * tangent + dy * newup);
 
 	glm::vec3 eye_rel_cent = eye_ - center;
-	glm::vec3 norm = glm::normalize(glm::cross(dir_world, -look_));
+	glm::vec3 norm = glm::normalize(glm::cross(dir_world, look_));
 
 	eye_rel_cent = glm::rotate(eye_rel_cent, rotation_speed, norm);
 	eye_ = eye_rel_cent + center;
 	look_ = -glm::normalize(eye_rel_cent);
-	up_ = glm::normalize(glm::rotate(up_, roll_speed, norm));
+	up_ = glm::normalize(glm::rotate(up_, rotation_speed, norm));
 
 }
 // FIXME: Calculate the view matrix

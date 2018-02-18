@@ -51,18 +51,18 @@ create_cube(std::vector<glm::vec4>& vertices,
 	vertices.push_back(glm::vec4(max.x, min.y, max.z, 1.0f)); // 7
 
 
-	faces.push_back(offset + glm::uvec3(0, 2, 1)); // 0
-	faces.push_back(offset + glm::uvec3(0, 3, 2)); // 1
-	faces.push_back(offset + glm::uvec3(1, 6, 5)); // 2
-	faces.push_back(offset + glm::uvec3(1, 2, 6)); // 3
-	faces.push_back(offset + glm::uvec3(3, 6, 2)); // 4
-	faces.push_back(offset + glm::uvec3(3, 7, 6)); // 5
-	faces.push_back(offset + glm::uvec3(6, 4, 5)); // 6
-	faces.push_back(offset + glm::uvec3(6, 7, 4)); // 7
-	faces.push_back(offset + glm::uvec3(5, 0, 1)); // 8
-	faces.push_back(offset + glm::uvec3(5, 4, 0)); // 9
-	faces.push_back(offset + glm::uvec3(4, 7, 3)); // 10
-	faces.push_back(offset + glm::uvec3(4, 3, 0)); // 11
+	faces.push_back(offset + glm::uvec3(0, 1, 2)); // 0
+	faces.push_back(offset + glm::uvec3(0, 2, 3)); // 1
+	faces.push_back(offset + glm::uvec3(1, 5, 6)); // 2
+	faces.push_back(offset + glm::uvec3(1, 6, 2)); // 3
+	faces.push_back(offset + glm::uvec3(3, 2, 6)); // 4
+	faces.push_back(offset + glm::uvec3(3, 6, 7)); // 5
+	faces.push_back(offset + glm::uvec3(6, 5, 4)); // 6
+	faces.push_back(offset + glm::uvec3(6, 4, 7)); // 7
+	faces.push_back(offset + glm::uvec3(5, 1, 0)); // 8
+	faces.push_back(offset + glm::uvec3(5, 0, 4)); // 9
+	faces.push_back(offset + glm::uvec3(4, 3, 7)); // 10
+	faces.push_back(offset + glm::uvec3(4, 0, 3)); // 11
 
 }
 
@@ -110,7 +110,6 @@ Menger::generate_geometry(std::vector<glm::vec4>& vertices,
                           std::vector<glm::uvec3>& faces) const
 {
 	create_sponge(vertices, faces, glm::vec3(-.5f,-.5f,-.5f), glm::vec3(.5f,.5f,.5f), nesting_level_);
-	
 	// printf("asdfasdf\n");
 }
 

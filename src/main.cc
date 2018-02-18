@@ -131,9 +131,9 @@ KeyCallback(GLFWwindow* window,
 	else if (key == GLFW_KEY_S && mods == GLFW_MOD_CONTROL && action == GLFW_RELEASE) {
 		// FIXME: save geometry to OBJ
 	} else if (key == GLFW_KEY_W && action != GLFW_RELEASE) {
-		g_camera.zoom(1);
+		g_camera.strafe_forward(1);
 	} else if (key == GLFW_KEY_S && action != GLFW_RELEASE) {
-		g_camera.zoom(-1);
+		g_camera.strafe_forward(-1);
 	} else if (key == GLFW_KEY_A && action != GLFW_RELEASE) {
 		g_camera.strafe_tangent(-1);
 	} else if (key == GLFW_KEY_D && action != GLFW_RELEASE) {
@@ -175,7 +175,7 @@ MousePosCallback(GLFWwindow* window, double mouse_x, double mouse_y)
 	if (!g_mouse_pressed)
 		return;
 	if (g_current_button == GLFW_MOUSE_BUTTON_LEFT) {
-		
+		g_camera.rotate(g_camera.last_x - mouse_x, g_camera.last_y - mouse_y);
 	} else if (g_current_button == GLFW_MOUSE_BUTTON_RIGHT) {
 		if(g_camera.last_y > mouse_y) {
 			g_camera.zoom(1);

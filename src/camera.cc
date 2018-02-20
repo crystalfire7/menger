@@ -28,6 +28,9 @@ void Camera::strafe_forward(int direction){
 void Camera::zoom(int direction) {
 	glm::vec3 center = eye_ + camera_distance_ * look_;
 	camera_distance_ -= direction * zoom_speed;
+	if(camera_distance_ <= 0.01f){
+		camera_distance_ = 0.01f;
+	}
 	eye_ = center - camera_distance_ * look_;
 	
 }
@@ -41,16 +44,18 @@ void Camera::rotate(float dx, float dy){
 	glm::vec3 center = eye_ + camera_distance_ * look_; // center
 	glm::vec3 tangent = glm::normalize(glm::cross(look_, up_));
 	glm::vec3 newup = glm::normalize(glm::cross(tangent, look_));
-
-	glm::vec3 dir_world = glm::normalize(dx * tangent + dy * newup);
-
-	glm::vec3 eye_rel_cent = eye_ - center;
+	glm::vec3 dir_world = glm::normalize(dx * tangent - dy * newup);
 	glm::vec3 norm = glm::normalize(glm::cross(dir_world, look_));
-
-	eye_rel_cent = glm::rotate(eye_rel_cent, rotation_speed, norm);
-	eye_ = eye_rel_cent + center;
-	look_ = -glm::normalize(eye_rel_cent);
-	up_ = glm::normalize(glm::rotate(up_, rotation_speed, norm));
+	if (fps){
+		look_ = glm::rotate(look_, rotation_speed, norm);
+		up_ = glm::rotate(up_, rotation_speed, norm);
+	} else {
+		glm::vec3 eye_rel_cent = eye_ - center;
+		eye_rel_cent = glm::rotate(eye_rel_cent, rotation_speed, norm);
+		eye_ = eye_rel_cent + center;
+		look_ = -glm::normalize(eye_rel_cent);
+		up_ = glm::normalize(glm::rotate(up_, rotation_speed, norm));
+	}
 
 }
 // FIXME: Calculate the view matrix

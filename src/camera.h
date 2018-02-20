@@ -15,6 +15,7 @@ public:
 	void rotate(float dx, float dy);
 	float last_y = 0.0f;
 	float last_x = 0.0f;
+	bool fps = true;
 private:
 	float camera_distance_ = 3.0f;
 	glm::vec3 look_ = glm::vec3(0.0f, 0.0f, -1.0f);

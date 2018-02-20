@@ -192,8 +192,9 @@ KeyCallback(GLFWwindow* window,
 		g_camera.strafe_up(-1);
 	} else if (key == GLFW_KEY_UP && action != GLFW_RELEASE) {
 		g_camera.strafe_up(1);
-	} else if (key == GLFW_KEY_C && action != GLFW_RELEASE) {
+	} else if (key == GLFW_KEY_C && action == GLFW_RELEASE) {
 		// FIXME: FPS mode on/off
+		g_camera.fps = !g_camera.fps;
 	}
 	if (!g_menger)
 		return ; // 0-4 only available in Menger mode.

@@ -51,6 +51,7 @@ in vec4 vs_light_direction[];
 flat out vec4 normal;
 out vec4 light_direction;
 out vec4 world_position;
+out vec4 world_light_position;
 void main()
 {
 	int n = 0;
@@ -89,18 +90,18 @@ in vec4 light_direction;
 in vec4 world_position;
 uniform mat4 view;
 uniform mat4 projection;
+uniform vec4 light_position;
 out vec4 fragment_color;
 void main()
 {
 	float x = world_position.x / world_position.w;
 	float y = world_position.z / world_position.w;
-	// float f = mod(floor(mod(x,2)) + floor(mod(y,x)), 2);
-	float f = mod((floor(sin(x*3.14159265)) + 1) + (floor(sin(y*3.14159265)) + 1), 2); 
+	float f = mod(floor(x) + floor(y), 2);
+	// float f = mod((floor(sin(x*3.14159265)) + 1) + (floor(sin(y*3.14159265)) + 1), 2); 
 	vec4 color = vec4(f, f, f, 1.0);
-	fragment_color = color;
-	// float dot_nl = dot(normalize(light_direction), normalize(projection * view * vec4(0,1.0f,0, 1.0f)));
-	// dot_nl = clamp(dot_nl, 0.0, 1.0);
-	// fragment_color = clamp(dot_nl * color, 0.0, 1.0);
+	float dot_nl = dot(normalize(light_position - (world_position/world_position.w)), vec4(0, 1.0f,0, 1.0f));
+	dot_nl = clamp(dot_nl, 0.0, 1.0);
+	fragment_color = clamp(dot_nl * color, 0.0, 1.0);
 }
 )zzz";
 

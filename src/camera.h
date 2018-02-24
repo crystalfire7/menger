@@ -17,10 +17,10 @@ public:
 	float last_x = 0.0f;
 	bool fps = true;
 private:
-	float camera_distance_ = 3.0f;
-	glm::vec3 look_ = glm::vec3(0.0f, 0.0f, -1.0f);
-	glm::vec3 up_ = glm::vec3(0.0f, 1.0, 0.0f);
-	glm::vec3 eye_ = glm::vec3(0.0f, 0.0f, camera_distance_);
+	float camera_distance_ = 5.0f * glm::sqrt(2.0f);
+	glm::vec3 look_ = glm::normalize(glm::vec3(0.0f, -10.0f, 10.0f));
+	glm::vec3 up_ = glm::cross(glm::normalize(glm::vec3(0.0f, -10.0f, 10.0f)), glm::vec3(1.0f, 0.0f, 0.0f));
+	glm::vec3 eye_ = glm::vec3(0.0f, 10.0f, -10.0f);
 	// Note: you may need additional member variables
 };
 

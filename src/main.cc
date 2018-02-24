@@ -51,12 +51,16 @@ in vec4 vs_light_direction[];
 flat out vec4 normal;
 out vec4 light_direction;
 out vec4 world_position;
-out vec4 world_light_position;
+out vec3 bary;
 void main()
 {
 	int n = 0;
+	// size = gl_in[1].gl_Position.xyz - gl_in[0].gl_Position.xyz;
 	normal = normalize(vec4(cross(gl_in[1].gl_Position.xyz - gl_in[0].gl_Position.xyz, gl_in[2].gl_Position.xyz - gl_in[0].gl_Position.xyz), 0.0f));
 	for (n = 0; n < gl_in.length(); n++) {
+		vec3 temp = vec3(0.0f, 0.0f, 0.0f);
+		temp[n] = 1.0f;
+		bary = temp;
 		light_direction = vs_light_direction[n];
 		gl_Position = projection * gl_in[n].gl_Position;
 		world_position = inverse(view) * gl_in[n].gl_Position;
@@ -85,23 +89,26 @@ void main()
 // FIXME: Implement shader effects with an alternative shader.
 const char* floor_fragment_shader =
 R"zzz(#version 330 core
-in vec4 normal;
+flat in vec4 normal;
 in vec4 light_direction;
 in vec4 world_position;
-uniform mat4 view;
-uniform mat4 projection;
+in vec3 bary;
+uniform bool wireframe;
 uniform vec4 light_position;
 out vec4 fragment_color;
 void main()
 {
-	float x = world_position.x / world_position.w;
-	float y = world_position.z / world_position.w;
-	float f = mod(floor(x) + floor(y), 2);
-	// float f = mod((floor(sin(x*3.14159265)) + 1) + (floor(sin(y*3.14159265)) + 1), 2); 
-	vec4 color = vec4(f, f, f, 1.0);
-	float dot_nl = dot(normalize(light_position - (world_position/world_position.w)), vec4(0, 1.0f,0, 1.0f));
-	dot_nl = clamp(dot_nl, 0.0, 1.0);
-	fragment_color = clamp(dot_nl * color, 0.0, 1.0);
+	if(wireframe && min(min(bary[0], bary[1]),bary[2]) < .0025f) {
+		fragment_color = vec4(0, 1.0f, 0, 1.0f);
+	} else {
+		float x = world_position.x;
+		float y = world_position.z;
+		float f = mod(floor(x) + floor(y), 2);
+		vec4 color = vec4(f, f, f, 1.0);
+		float dot_nl = dot(normalize(light_direction), normalize(normal));
+		dot_nl = clamp(dot_nl, 0.0, 1.0);
+		fragment_color = clamp(dot_nl * color, 0.0, 1.0);
+	}
 }
 )zzz";
 
@@ -109,19 +116,16 @@ void
 CreateFloor(std::vector<glm::vec4>& vertices,
         std::vector<glm::uvec3>& indices)
 {
-	vertices.push_back(glm::vec4(0, -2.0f, 0, 1.0f));
-	vertices.push_back(glm::vec4(1.0f, 0, 0, 0));
-	vertices.push_back(glm::vec4(0, 0, 1.0f, 0));
-	vertices.push_back(glm::vec4(-1.0, 0, 0, 0));
-	vertices.push_back(glm::vec4(0, 0, -1.0f, 0));
+	vertices.push_back(glm::vec4(-10.0f, -2.0f, -10.0f, 1.0f));
+	vertices.push_back(glm::vec4(-10.0f, -2.0f, 10.0f, 1.0f));
+	vertices.push_back(glm::vec4(10.0f, -2.0f, -10.0f, 1.0f));
+	vertices.push_back(glm::vec4(10.0f, -2.0f, 10.0f, 1.0f));
 	// vertices.push_back(glm::vec4(5.0f, -2.0f, 0, 1.0f));
 	// vertices.push_back(glm::vec4(0, -2.0f, 5.0f, 1.0f));
 	// vertices.push_back(glm::vec4(-5.0, -2.0f, 0, 1.0f));
 	// vertices.push_back(glm::vec4(0, -2.0f, -5.0f, 1.0f));
-	indices.push_back(glm::uvec3(0, 1, 2));
-	indices.push_back(glm::uvec3(0, 2, 3));
-	indices.push_back(glm::uvec3(0, 3, 4));
-	indices.push_back(glm::uvec3(0, 4, 1));
+	indices.push_back(glm::uvec3(0, 1, 3));
+	indices.push_back(glm::uvec3(0, 3, 2));
 }
 
 void
@@ -161,7 +165,8 @@ ErrorCallback(int error, const char* description)
 std::shared_ptr<Menger> g_menger;
 Camera g_camera;
 bool save_obj = false;
-
+bool wireframe = true;
+bool toggleFaces = true;
 void
 KeyCallback(GLFWwindow* window,
             int key,
@@ -185,6 +190,10 @@ KeyCallback(GLFWwindow* window,
 		g_camera.strafe_tangent(-1);
 	} else if (key == GLFW_KEY_D && action != GLFW_RELEASE) {
 		g_camera.strafe_tangent(1);
+	} else if (key == GLFW_KEY_F && mods == GLFW_MOD_CONTROL && action == GLFW_RELEASE) {
+		toggleFaces = !toggleFaces;
+	} else if (key == GLFW_KEY_F && action == GLFW_RELEASE) {
+		wireframe = !wireframe;
 	} else if (key == GLFW_KEY_LEFT && action != GLFW_RELEASE) {
 		g_camera.roll(-1);
 	} else if (key == GLFW_KEY_RIGHT && action != GLFW_RELEASE) {
@@ -441,11 +450,14 @@ int main(int argc, char* argv[])
 	GLint floor_light_position_location = 0;
 	CHECK_GL_ERROR(floor_light_position_location =
 			glGetUniformLocation(floor_program_id, "light_position"));
+	GLint floor_wireframe_location = 0;
+	CHECK_GL_ERROR(floor_wireframe_location =
+			glGetUniformLocation(floor_program_id, "wireframe"));
 
 
 
 
-	glm::vec4 light_position = glm::vec4(10.0f, 10.0f, 10.0f, 1.0f);
+	glm::vec4 light_position = glm::vec4(-10.0f, 10.0f, 0.0f, 1.0f);
 	float aspect = 0.0f;
 	float theta = 0.0f;
 	while (!glfwWindowShouldClose(window)) {
@@ -505,6 +517,7 @@ int main(int argc, char* argv[])
 					&view_matrix[0][0]));
 		CHECK_GL_ERROR(glUniform4fv(light_position_location, 1, &light_position[0]));
 
+		CHECK_GL_ERROR(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL));	
 		// Draw our triangles.
 		CHECK_GL_ERROR(glDrawElements(GL_TRIANGLES, obj_faces.size() * 3, GL_UNSIGNED_INT, 0));
 
@@ -528,7 +541,13 @@ int main(int argc, char* argv[])
 		CHECK_GL_ERROR(glUniformMatrix4fv(floor_view_matrix_location, 1, GL_FALSE,
 					&view_matrix[0][0]));
 		CHECK_GL_ERROR(glUniform4fv(floor_light_position_location, 1, &light_position[0]));
+		CHECK_GL_ERROR(glUniform1i(floor_wireframe_location, wireframe));
 
+		if(toggleFaces) {
+			CHECK_GL_ERROR(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL));
+		} else {
+			CHECK_GL_ERROR(glPolygonMode(GL_FRONT_AND_BACK, GL_LINE));
+		}
 		// Draw our triangles.
 		CHECK_GL_ERROR(glDrawElements(GL_TRIANGLES, floor_faces.size() * 3, GL_UNSIGNED_INT, 0));
 

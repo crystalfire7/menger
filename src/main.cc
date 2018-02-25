@@ -270,6 +270,7 @@ bool wireframe = true;
 bool toggleFaces = true;
 float tess_level_inner = 3.0f;
 float tess_level_outer = 3.0f;
+bool ocean_mode = false;
 
 
 void
@@ -295,6 +296,8 @@ KeyCallback(GLFWwindow* window,
 		g_camera.strafe_tangent(-1);
 	} else if (key == GLFW_KEY_D && action != GLFW_RELEASE) {
 		g_camera.strafe_tangent(1);
+	} else if (key == GLFW_KEY_O && mods == GLFW_MOD_CONTROL && action == GLFW_RELEASE) {
+		ocean_mode = !ocean_mode;
 	} else if (key == GLFW_KEY_F && mods == GLFW_MOD_CONTROL && action == GLFW_RELEASE) {
 		toggleFaces = !toggleFaces;
 	} else if (key == GLFW_KEY_F && action == GLFW_RELEASE) {
@@ -731,10 +734,18 @@ int main(int argc, char* argv[])
 		// 	3. Pass Uniforms
 		// 	4. Call glDrawElements, since input geometry is
 		// 	indicated by VAO.
+
+		if(toggleFaces) {
+			CHECK_GL_ERROR(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL));
+		} else {
+			CHECK_GL_ERROR(glPolygonMode(GL_FRONT_AND_BACK, GL_LINE));
+		}
+
 		CHECK_GL_ERROR(glUseProgram(floor_program_id));
 		CHECK_GL_ERROR(glBindVertexArray(g_array_objects[kFloorVao]));
 		CHECK_GL_ERROR(glBindBuffer(GL_ARRAY_BUFFER, g_buffer_objects[kFloorVao][kVertexBuffer]));
 		CHECK_GL_ERROR(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_buffer_objects[kFloorVao][kIndexBuffer]));
+
 
 		// Pass uniforms in.
 		CHECK_GL_ERROR(glUniformMatrix4fv(floor_projection_matrix_location, 1, GL_FALSE,
@@ -745,15 +756,10 @@ int main(int argc, char* argv[])
 		CHECK_GL_ERROR(glUniform1i(floor_wireframe_location, wireframe));
 		CHECK_GL_ERROR(glUniform1f(floor_tessouter_location, tess_level_outer));
 		CHECK_GL_ERROR(glUniform1f(floor_tessinner_location, tess_level_inner));
-
-		if(toggleFaces) {
-			CHECK_GL_ERROR(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL));
-		} else {
-			CHECK_GL_ERROR(glPolygonMode(GL_FRONT_AND_BACK, GL_LINE));
-		}
 		// Draw our triangles.
+
 		CHECK_GL_ERROR(glPatchParameteri(GL_PATCH_VERTICES, 3));
-		CHECK_GL_ERROR(glDrawElements(GL_PATCHES, floor_faces.size() * 3, GL_UNSIGNED_INT, 0));
+		CHECK_GL_ERROR(glDrawElements(GL_PATCHES, floor_faces.size() * 3 * (ocean_mode ? 0 : 1), GL_UNSIGNED_INT, 0));
 
 		//ocean drawing
 		CHECK_GL_ERROR(glUseProgram(ocean_program_id));
@@ -771,14 +777,9 @@ int main(int argc, char* argv[])
 		CHECK_GL_ERROR(glUniform1f(ocean_tessouter_location, tess_level_outer));
 		CHECK_GL_ERROR(glUniform1f(ocean_tessinner_location, tess_level_inner));
 
-		if(toggleFaces) {
-			CHECK_GL_ERROR(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL));
-		} else {
-			CHECK_GL_ERROR(glPolygonMode(GL_FRONT_AND_BACK, GL_LINE));
-		}
 		// Draw our triangles.
 		CHECK_GL_ERROR(glPatchParameteri(GL_PATCH_VERTICES, 4));
-		CHECK_GL_ERROR(glDrawElements(GL_PATCHES, ocean_faces.size() * 4, GL_UNSIGNED_INT, 0));
+		CHECK_GL_ERROR(glDrawElements(GL_PATCHES, ocean_faces.size() * 4 * (ocean_mode ? 1 : 0), GL_UNSIGNED_INT, 0));
 
 
 		// Poll and swap.

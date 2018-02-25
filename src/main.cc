@@ -21,7 +21,7 @@ int window_width = 800, window_height = 600;
 enum { kVertexBuffer, kIndexBuffer, kNumVbos };
 
 // These are our VAOs.
-enum { kGeometryVao, kFloorVao, kNumVaos };
+enum { kGeometryVao, kFloorVao, kOceanVao, kNumVaos };
 
 GLuint g_array_objects[kNumVaos];  // This will store the VAO descriptors.
 GLuint g_buffer_objects[kNumVaos][kNumVbos];  // These will store VBO descriptors.
@@ -29,7 +29,7 @@ GLuint g_buffer_objects[kNumVaos][kNumVbos];  // These will store VBO descriptor
 // C++ 11 String Literal
 // See http://en.cppreference.com/w/cpp/language/string_literal
 const char* vertex_shader =
-R"zzz(#version 330 core
+R"zzz(#version 400 core
 in vec4 vertex_position;
 uniform mat4 view;
 uniform vec4 light_position;
@@ -42,7 +42,7 @@ void main()
 )zzz";
 
 const char* geometry_shader =
-R"zzz(#version 330 core
+R"zzz(#version 400 core
 layout (triangles) in;
 layout (triangle_strip, max_vertices = 3) out;
 uniform mat4 projection;
@@ -71,7 +71,7 @@ void main()
 )zzz";
 
 const char* fragment_shader =
-R"zzz(#version 330 core
+R"zzz(#version 400 core
 flat in vec4 normal;
 uniform mat4 view;
 in vec4 light_direction;
@@ -88,7 +88,7 @@ void main()
 
 // FIXME: Implement shader effects with an alternative shader.
 const char* floor_fragment_shader =
-R"zzz(#version 330 core
+R"zzz(#version 400 core
 flat in vec4 normal;
 in vec4 light_direction;
 in vec4 world_position;
@@ -142,9 +142,61 @@ void main()
 	// in triangles, gl_TessCoord is bary
 	gl_Position = (gl_TessCoord.x * gl_in[0].gl_Position) + (gl_TessCoord.y * gl_in[1].gl_Position) + (gl_TessCoord.z * gl_in[2].gl_Position);
 	vs_light_direction = (gl_TessCoord.x * tcs_light_direction[0]) + (gl_TessCoord.y * tcs_light_direction[1]) + (gl_TessCoord.z * tcs_light_direction[2]);
-	// vs_light_direction[0] = tcs_light_direction[0];
-	// vs_light_direction[1] = tcs_light_direction[1];
-	// vs_light_direction[2] = tcs_light_direction[2];
+}
+)zzz";
+
+const char* ocean_tesscontrol_shader =
+R"zzz(#version 400 core
+layout (vertices = 4) out;
+in vec4 vs_light_direction[];
+uniform float tess_level_inner;
+uniform float tess_level_outer;
+out vec4 tcs_light_direction[];
+void main()
+{
+	gl_out[gl_InvocationID].gl_Position = gl_in[gl_InvocationID].gl_Position;
+	tcs_light_direction[gl_InvocationID] = vs_light_direction[gl_InvocationID];
+	if(gl_InvocationID == 0){
+		gl_TessLevelInner[0] = tess_level_inner;
+		gl_TessLevelInner[1] = tess_level_inner;
+		gl_TessLevelOuter[0] = tess_level_outer;
+		gl_TessLevelOuter[1] = tess_level_outer;
+		gl_TessLevelOuter[2] = tess_level_outer;
+		gl_TessLevelOuter[3] = tess_level_outer;
+	}
+}
+)zzz";
+
+const char* ocean_tesseval_shader =
+R"zzz(#version 400 core
+layout(quads) in;
+in vec4 tcs_light_direction[];
+out vec4 vs_light_direction;
+void main()
+{
+	// in triangles, gl_TessCoord is u,v
+	vec4 first = mix(gl_in[0].gl_Position, gl_in[1].gl_Position, gl_TessCoord.x);
+	vec4 second = mix(gl_in[3].gl_Position, gl_in[2].gl_Position, gl_TessCoord.x);
+	gl_Position = mix(first, second, gl_TessCoord.y);
+}
+)zzz";
+
+const char* ocean_fragment_shader =
+R"zzz(#version 400 core
+flat in vec4 normal;
+in vec4 light_direction;
+in vec4 world_position;
+in vec3 bary;
+uniform bool wireframe;
+uniform vec4 light_position;
+out vec4 fragment_color;
+void main()
+{
+	if(wireframe && min(min(bary[0], bary[1]),bary[2]) < .0025f) {
+		fragment_color = vec4(0, 1.0f, 0, 1.0f);
+	} else {
+		fragment_color = vec4(0.0f, 0.0f, 1.0f, 1.0f);
+	}
 }
 )zzz";
 
@@ -152,16 +204,29 @@ void
 CreateFloor(std::vector<glm::vec4>& vertices,
         std::vector<glm::uvec3>& indices)
 {
-	vertices.push_back(glm::vec4(-10.0f, -2.0f, -10.0f, 1.0f));
-	vertices.push_back(glm::vec4(-10.0f, -2.0f, 10.0f, 1.0f));
-	vertices.push_back(glm::vec4(10.0f, -2.0f, -10.0f, 1.0f));
-	vertices.push_back(glm::vec4(10.0f, -2.0f, 10.0f, 1.0f));
-	// vertices.push_back(glm::vec4(5.0f, -2.0f, 0, 1.0f));
-	// vertices.push_back(glm::vec4(0, -2.0f, 5.0f, 1.0f));
-	// vertices.push_back(glm::vec4(-5.0, -2.0f, 0, 1.0f));
-	// vertices.push_back(glm::vec4(0, -2.0f, -5.0f, 1.0f));
+	vertices.push_back(glm::vec4(-10.0f, -3.0f, -10.0f, 1.0f));
+	vertices.push_back(glm::vec4(-10.0f, -3.0f, 10.0f, 1.0f));
+	vertices.push_back(glm::vec4(10.0f, -3.0f, -10.0f, 1.0f));
+	vertices.push_back(glm::vec4(10.0f, -3.0f, 10.0f, 1.0f));
 	indices.push_back(glm::uvec3(0, 1, 3));
 	indices.push_back(glm::uvec3(0, 3, 2));
+}
+
+void
+CreateOcean(std::vector<glm::vec4>& vertices,
+        std::vector<glm::uvec4>& indices)
+{
+	//16 x 16 patches
+	for(int i = 0; i < 16; i++) {
+		for(int k = 0; k < 16; k++) {
+			uint32_t offset = vertices.size();
+			vertices.push_back(glm::vec4(-20.0f + 2.5f * i, -2.0f, -20.0f + 2.5f * k, 1.0f));
+			vertices.push_back(glm::vec4(-20.0f + 2.5f * (i + 1), -2.0f, -20.0f + 2.5f * k, 1.0f));
+			vertices.push_back(glm::vec4(-20.0f + 2.5f * i, -2.0f, -20.0f + 2.5f * (k + 1), 1.0f));
+			vertices.push_back(glm::vec4(-20.0f + 2.5f * (i + 1), -2.0f, -20.0f + 2.5f * (k + 1), 1.0f));
+			indices.push_back(glm::uvec4(offset, offset + 1, offset + 3, offset + 2));
+		}
+	}
 }
 
 void
@@ -355,8 +420,9 @@ int main(int argc, char* argv[])
 	std::vector<glm::uvec3> floor_faces;
 	CreateFloor(floor_vertices, floor_faces);
 
-        //FIXME: Create the geometry from a Menger object.
-        // CreateTriangle(obj_vertices, obj_faces);
+	std::vector<glm::vec4> ocean_vertices;
+	std::vector<glm::uvec4> ocean_faces;
+	CreateOcean(ocean_vertices, ocean_faces);
 
 	g_menger->set_nesting_level(1);
 
@@ -393,36 +459,35 @@ int main(int argc, char* argv[])
 				sizeof(uint32_t) * obj_faces.size() * 3,
 				obj_faces.data(), GL_STATIC_DRAW));
 
-	/*
- 	 * By far, the geometry is loaded into g_buffer_objects[kGeometryVao][*].
-	 * These buffers are binded to g_array_objects[kGeometryVao]
-	 */
-
-	// FIXME: load the floor into g_buffer_objects[kFloorVao][*],
-	//        and bind these VBO to g_array_objects[kFloorVao]
-
-
 
 // Switch to the VAO for floor.
 	CHECK_GL_ERROR(glBindVertexArray(g_array_objects[kFloorVao]));
-
-	// Generate buffer objects
 	CHECK_GL_ERROR(glGenBuffers(kNumVbos, &g_buffer_objects[kFloorVao][0]));
-
-	// Setup vertex data in a VBO.
 	CHECK_GL_ERROR(glBindBuffer(GL_ARRAY_BUFFER, g_buffer_objects[kFloorVao][kVertexBuffer]));
-	// NOTE: We do not send anything right now, we just describe it to OpenGL.
 	CHECK_GL_ERROR(glBufferData(GL_ARRAY_BUFFER,
 				sizeof(float) * floor_vertices.size() * 4, floor_vertices.data(),
 				GL_STATIC_DRAW));
 	CHECK_GL_ERROR(glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 0, 0));
 	CHECK_GL_ERROR(glEnableVertexAttribArray(0));
-
-	// Setup element array buffer.
 	CHECK_GL_ERROR(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_buffer_objects[kFloorVao][kIndexBuffer]));
 	CHECK_GL_ERROR(glBufferData(GL_ELEMENT_ARRAY_BUFFER,
 				sizeof(uint32_t) * floor_faces.size() * 3,
 				floor_faces.data(), GL_STATIC_DRAW));
+
+
+// Switch to the Ocean VAO
+	CHECK_GL_ERROR(glBindVertexArray(g_array_objects[kOceanVao]));
+	CHECK_GL_ERROR(glGenBuffers(kNumVbos, &g_buffer_objects[kOceanVao][0]));
+	CHECK_GL_ERROR(glBindBuffer(GL_ARRAY_BUFFER, g_buffer_objects[kOceanVao][kVertexBuffer]));
+	CHECK_GL_ERROR(glBufferData(GL_ARRAY_BUFFER,
+				sizeof(float) * ocean_vertices.size() * 4, ocean_vertices.data(),
+				GL_STATIC_DRAW));
+	CHECK_GL_ERROR(glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 0, 0));
+	CHECK_GL_ERROR(glEnableVertexAttribArray(0));
+	CHECK_GL_ERROR(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_buffer_objects[kOceanVao][kIndexBuffer]));
+	CHECK_GL_ERROR(glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+				sizeof(uint32_t) * ocean_faces.size() * 4,
+				ocean_faces.data(), GL_STATIC_DRAW));
 
 
 	// Setup vertex shader.
@@ -449,6 +514,55 @@ int main(int argc, char* argv[])
 	glCompileShader(fragment_shader_id);
 	CHECK_GL_SHADER_ERROR(fragment_shader_id);
 
+	// Setup fragment shader for the floor
+	GLuint floor_fragment_shader_id = 0;
+	const char* floor_fragment_source_pointer = floor_fragment_shader;
+	CHECK_GL_ERROR(floor_fragment_shader_id = glCreateShader(GL_FRAGMENT_SHADER));
+	CHECK_GL_ERROR(glShaderSource(floor_fragment_shader_id, 1,
+				&floor_fragment_source_pointer, nullptr));
+	glCompileShader(floor_fragment_shader_id);
+	CHECK_GL_SHADER_ERROR(floor_fragment_shader_id);
+
+	GLuint floor_tesscontrol_shader_id = 0;
+	const char* floor_tesscontrol_source_pointer = floor_tesscontrol_shader;
+	CHECK_GL_ERROR(floor_tesscontrol_shader_id = glCreateShader(GL_TESS_CONTROL_SHADER));
+	CHECK_GL_ERROR(glShaderSource(floor_tesscontrol_shader_id, 1,
+				&floor_tesscontrol_source_pointer, nullptr));
+	glCompileShader(floor_tesscontrol_shader_id);
+	CHECK_GL_SHADER_ERROR(floor_tesscontrol_shader_id);
+
+	GLuint floor_tesseval_shader_id = 0;
+	const char* floor_tesseval_source_pointer = floor_tesseval_shader;
+	CHECK_GL_ERROR(floor_tesseval_shader_id = glCreateShader(GL_TESS_EVALUATION_SHADER));
+	CHECK_GL_ERROR(glShaderSource(floor_tesseval_shader_id, 1,
+				&floor_tesseval_source_pointer, nullptr));
+	glCompileShader(floor_tesseval_shader_id);
+	CHECK_GL_SHADER_ERROR(floor_tesseval_shader_id);
+
+	GLuint ocean_tesscontrol_shader_id = 0;
+	const char* ocean_tesscontrol_source_pointer = ocean_tesscontrol_shader;
+	CHECK_GL_ERROR(ocean_tesscontrol_shader_id = glCreateShader(GL_TESS_CONTROL_SHADER));
+	CHECK_GL_ERROR(glShaderSource(ocean_tesscontrol_shader_id, 1,
+				&ocean_tesscontrol_source_pointer, nullptr));
+	glCompileShader(ocean_tesscontrol_shader_id);
+	CHECK_GL_SHADER_ERROR(ocean_tesscontrol_shader_id);
+
+	GLuint ocean_tesseval_shader_id = 0;
+	const char* ocean_tesseval_source_pointer = ocean_tesseval_shader;
+	CHECK_GL_ERROR(ocean_tesseval_shader_id = glCreateShader(GL_TESS_EVALUATION_SHADER));
+	CHECK_GL_ERROR(glShaderSource(ocean_tesseval_shader_id, 1,
+				&ocean_tesseval_source_pointer, nullptr));
+	glCompileShader(ocean_tesseval_shader_id);
+	CHECK_GL_SHADER_ERROR(ocean_tesseval_shader_id);
+
+	GLuint ocean_fragment_shader_id = 0;
+	const char* ocean_fragment_source_pointer = ocean_fragment_shader;
+	CHECK_GL_ERROR(ocean_fragment_shader_id = glCreateShader(GL_FRAGMENT_SHADER));
+	CHECK_GL_ERROR(glShaderSource(ocean_fragment_shader_id, 1,
+				&ocean_fragment_source_pointer, nullptr));
+	glCompileShader(ocean_fragment_shader_id);
+	CHECK_GL_SHADER_ERROR(ocean_fragment_shader_id);
+
 	// Let's create our program.
 	GLuint program_id = 0;
 	CHECK_GL_ERROR(program_id = glCreateProgram());
@@ -473,31 +587,6 @@ int main(int argc, char* argv[])
 	CHECK_GL_ERROR(light_position_location =
 			glGetUniformLocation(program_id, "light_position"));
 
-	// Setup fragment shader for the floor
-	GLuint floor_fragment_shader_id = 0;
-	const char* floor_fragment_source_pointer = floor_fragment_shader;
-	CHECK_GL_ERROR(floor_fragment_shader_id = glCreateShader(GL_FRAGMENT_SHADER));
-	CHECK_GL_ERROR(glShaderSource(floor_fragment_shader_id, 1,
-				&floor_fragment_source_pointer, nullptr));
-	glCompileShader(floor_fragment_shader_id);
-	CHECK_GL_SHADER_ERROR(floor_fragment_shader_id);
-
-	GLuint floor_tesscontrol_shader_id = 0;
-	const char* floor_tesscontrol_source_pointer = floor_tesscontrol_shader;
-	CHECK_GL_ERROR(floor_tesscontrol_shader_id = glCreateShader(GL_TESS_CONTROL_SHADER));
-	CHECK_GL_ERROR(glShaderSource(floor_tesscontrol_shader_id, 1,
-				&floor_tesscontrol_source_pointer, nullptr));
-	glCompileShader(floor_tesscontrol_shader_id);
-	CHECK_GL_SHADER_ERROR(floor_tesscontrol_shader_id);
-
-
-	GLuint floor_tesseval_shader_id = 0;
-	const char* floor_tesseval_source_pointer = floor_tesseval_shader;
-	CHECK_GL_ERROR(floor_tesseval_shader_id = glCreateShader(GL_TESS_EVALUATION_SHADER));
-	CHECK_GL_ERROR(glShaderSource(floor_tesseval_shader_id, 1,
-				&floor_tesseval_source_pointer, nullptr));
-	glCompileShader(floor_tesseval_shader_id);
-	CHECK_GL_SHADER_ERROR(floor_tesseval_shader_id);
 	// FIXME: Setup another program for the floor, and get its locations.
 	// Note: you can reuse the vertex and geometry shader objects
 	GLuint floor_program_id = 0;
@@ -534,7 +623,40 @@ int main(int argc, char* argv[])
 	CHECK_GL_ERROR(floor_tessouter_location =
 			glGetUniformLocation(floor_program_id, "tess_level_outer"));
 
+//ocean program
+	GLuint ocean_program_id = 0;
+	CHECK_GL_ERROR(ocean_program_id = glCreateProgram());
+	CHECK_GL_ERROR(glAttachShader(ocean_program_id, vertex_shader_id));
+	CHECK_GL_ERROR(glAttachShader(ocean_program_id, ocean_fragment_shader_id));
+	CHECK_GL_ERROR(glAttachShader(ocean_program_id, ocean_tesscontrol_shader_id));
+	CHECK_GL_ERROR(glAttachShader(ocean_program_id, ocean_tesseval_shader_id));
+	CHECK_GL_ERROR(glAttachShader(ocean_program_id, geometry_shader_id));
 
+	// Bind attributes.
+	CHECK_GL_ERROR(glBindAttribLocation(ocean_program_id, 0, "vertex_position"));
+	CHECK_GL_ERROR(glBindFragDataLocation(ocean_program_id, 0, "fragment_color"));
+	glLinkProgram(ocean_program_id);
+	CHECK_GL_PROGRAM_ERROR(ocean_program_id);
+
+	// Get the uniform locations.
+	GLint ocean_projection_matrix_location = 0;
+	CHECK_GL_ERROR(ocean_projection_matrix_location =
+			glGetUniformLocation(ocean_program_id, "projection"));
+	GLint ocean_view_matrix_location = 0;
+	CHECK_GL_ERROR(ocean_view_matrix_location =
+			glGetUniformLocation(ocean_program_id, "view"));
+	GLint ocean_light_position_location = 0;
+	CHECK_GL_ERROR(ocean_light_position_location =
+			glGetUniformLocation(ocean_program_id, "light_position"));
+	GLint ocean_wireframe_location = 0;
+	CHECK_GL_ERROR(ocean_wireframe_location =
+			glGetUniformLocation(ocean_program_id, "wireframe"));
+	GLint ocean_tessinner_location = 0;
+	CHECK_GL_ERROR(ocean_tessinner_location =
+			glGetUniformLocation(ocean_program_id, "tess_level_inner"));
+	GLint ocean_tessouter_location = 0;
+	CHECK_GL_ERROR(ocean_tessouter_location =
+			glGetUniformLocation(ocean_program_id, "tess_level_outer"));
 
 
 	glm::vec4 light_position = glm::vec4(-10.0f, 10.0f, 0.0f, 1.0f);
@@ -609,7 +731,6 @@ int main(int argc, char* argv[])
 		// 	3. Pass Uniforms
 		// 	4. Call glDrawElements, since input geometry is
 		// 	indicated by VAO.
-
 		CHECK_GL_ERROR(glUseProgram(floor_program_id));
 		CHECK_GL_ERROR(glBindVertexArray(g_array_objects[kFloorVao]));
 		CHECK_GL_ERROR(glBindBuffer(GL_ARRAY_BUFFER, g_buffer_objects[kFloorVao][kVertexBuffer]));
@@ -633,6 +754,32 @@ int main(int argc, char* argv[])
 		// Draw our triangles.
 		CHECK_GL_ERROR(glPatchParameteri(GL_PATCH_VERTICES, 3));
 		CHECK_GL_ERROR(glDrawElements(GL_PATCHES, floor_faces.size() * 3, GL_UNSIGNED_INT, 0));
+
+		//ocean drawing
+		CHECK_GL_ERROR(glUseProgram(ocean_program_id));
+		CHECK_GL_ERROR(glBindVertexArray(g_array_objects[kOceanVao]));
+		CHECK_GL_ERROR(glBindBuffer(GL_ARRAY_BUFFER, g_buffer_objects[kOceanVao][kVertexBuffer]));
+		CHECK_GL_ERROR(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_buffer_objects[kOceanVao][kIndexBuffer]));
+
+		// Pass uniforms in.
+		CHECK_GL_ERROR(glUniformMatrix4fv(ocean_projection_matrix_location, 1, GL_FALSE,
+					&projection_matrix[0][0]));
+		CHECK_GL_ERROR(glUniformMatrix4fv(ocean_view_matrix_location, 1, GL_FALSE,
+					&view_matrix[0][0]));
+		CHECK_GL_ERROR(glUniform4fv(ocean_light_position_location, 1, &light_position[0]));
+		CHECK_GL_ERROR(glUniform1i(ocean_wireframe_location, wireframe));
+		CHECK_GL_ERROR(glUniform1f(ocean_tessouter_location, tess_level_outer));
+		CHECK_GL_ERROR(glUniform1f(ocean_tessinner_location, tess_level_inner));
+
+		if(toggleFaces) {
+			CHECK_GL_ERROR(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL));
+		} else {
+			CHECK_GL_ERROR(glPolygonMode(GL_FRONT_AND_BACK, GL_LINE));
+		}
+		// Draw our triangles.
+		CHECK_GL_ERROR(glPatchParameteri(GL_PATCH_VERTICES, 4));
+		CHECK_GL_ERROR(glDrawElements(GL_PATCHES, ocean_faces.size() * 4, GL_UNSIGNED_INT, 0));
+
 
 		// Poll and swap.
 		glfwPollEvents();

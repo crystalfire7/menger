@@ -112,6 +112,42 @@ void main()
 }
 )zzz";
 
+const char* floor_tesscontrol_shader =
+R"zzz(#version 400 core
+layout (vertices = 3) out;
+in vec4 vs_light_direction[];
+uniform float tess_level_inner;
+uniform float tess_level_outer;
+out vec4 tcs_light_direction[];
+void main()
+{
+	gl_out[gl_InvocationID].gl_Position = gl_in[gl_InvocationID].gl_Position;
+	tcs_light_direction[gl_InvocationID] = vs_light_direction[gl_InvocationID];
+	if(gl_InvocationID == 0){
+		gl_TessLevelInner[0] = tess_level_inner;
+		gl_TessLevelOuter[0] = tess_level_outer;
+		gl_TessLevelOuter[1] = tess_level_outer;
+		gl_TessLevelOuter[2] = tess_level_outer;
+	}
+}
+)zzz";
+
+const char* floor_tesseval_shader =
+R"zzz(#version 400 core
+layout(triangles) in;
+in vec4 tcs_light_direction[];
+out vec4 vs_light_direction;
+void main()
+{
+	// in triangles, gl_TessCoord is bary
+	gl_Position = (gl_TessCoord.x * gl_in[0].gl_Position) + (gl_TessCoord.y * gl_in[1].gl_Position) + (gl_TessCoord.z * gl_in[2].gl_Position);
+	vs_light_direction = (gl_TessCoord.x * tcs_light_direction[0]) + (gl_TessCoord.y * tcs_light_direction[1]) + (gl_TessCoord.z * tcs_light_direction[2]);
+	// vs_light_direction[0] = tcs_light_direction[0];
+	// vs_light_direction[1] = tcs_light_direction[1];
+	// vs_light_direction[2] = tcs_light_direction[2];
+}
+)zzz";
+
 void
 CreateFloor(std::vector<glm::vec4>& vertices,
         std::vector<glm::uvec3>& indices)
@@ -167,6 +203,10 @@ Camera g_camera;
 bool save_obj = false;
 bool wireframe = true;
 bool toggleFaces = true;
+float tess_level_inner = 3.0f;
+float tess_level_outer = 3.0f;
+
+
 void
 KeyCallback(GLFWwindow* window,
             int key,
@@ -205,6 +245,22 @@ KeyCallback(GLFWwindow* window,
 	} else if (key == GLFW_KEY_C && action == GLFW_RELEASE) {
 		// FIXME: FPS mode on/off
 		g_camera.fps = !g_camera.fps;
+	} else if (key == GLFW_KEY_MINUS && action != GLFW_RELEASE){
+		if (tess_level_outer > 1.0f){
+			tess_level_outer -= 1.0f;
+		}
+	} else if (key == GLFW_KEY_EQUAL && action != GLFW_RELEASE){
+		if (tess_level_outer < 50.0f){
+			tess_level_outer += 1.0f;
+		}
+	}  else if (key == GLFW_KEY_COMMA && action != GLFW_RELEASE){
+		if (tess_level_inner > 1.0f){
+			tess_level_inner -= 1.0f;
+		}
+	} else if (key == GLFW_KEY_PERIOD && action != GLFW_RELEASE){
+		if (tess_level_inner < 50.0f){
+			tess_level_inner += 1.0f;
+		}
 	}
 	if (!g_menger)
 		return ; // 0-4 only available in Menger mode.
@@ -426,12 +482,30 @@ int main(int argc, char* argv[])
 	glCompileShader(floor_fragment_shader_id);
 	CHECK_GL_SHADER_ERROR(floor_fragment_shader_id);
 
+	GLuint floor_tesscontrol_shader_id = 0;
+	const char* floor_tesscontrol_source_pointer = floor_tesscontrol_shader;
+	CHECK_GL_ERROR(floor_tesscontrol_shader_id = glCreateShader(GL_TESS_CONTROL_SHADER));
+	CHECK_GL_ERROR(glShaderSource(floor_tesscontrol_shader_id, 1,
+				&floor_tesscontrol_source_pointer, nullptr));
+	glCompileShader(floor_tesscontrol_shader_id);
+	CHECK_GL_SHADER_ERROR(floor_tesscontrol_shader_id);
+
+
+	GLuint floor_tesseval_shader_id = 0;
+	const char* floor_tesseval_source_pointer = floor_tesseval_shader;
+	CHECK_GL_ERROR(floor_tesseval_shader_id = glCreateShader(GL_TESS_EVALUATION_SHADER));
+	CHECK_GL_ERROR(glShaderSource(floor_tesseval_shader_id, 1,
+				&floor_tesseval_source_pointer, nullptr));
+	glCompileShader(floor_tesseval_shader_id);
+	CHECK_GL_SHADER_ERROR(floor_tesseval_shader_id);
 	// FIXME: Setup another program for the floor, and get its locations.
 	// Note: you can reuse the vertex and geometry shader objects
 	GLuint floor_program_id = 0;
 	CHECK_GL_ERROR(floor_program_id = glCreateProgram());
 	CHECK_GL_ERROR(glAttachShader(floor_program_id, vertex_shader_id));
 	CHECK_GL_ERROR(glAttachShader(floor_program_id, floor_fragment_shader_id));
+	CHECK_GL_ERROR(glAttachShader(floor_program_id, floor_tesscontrol_shader_id));
+	CHECK_GL_ERROR(glAttachShader(floor_program_id, floor_tesseval_shader_id));
 	CHECK_GL_ERROR(glAttachShader(floor_program_id, geometry_shader_id));
 
 	// Bind attributes.
@@ -453,6 +527,12 @@ int main(int argc, char* argv[])
 	GLint floor_wireframe_location = 0;
 	CHECK_GL_ERROR(floor_wireframe_location =
 			glGetUniformLocation(floor_program_id, "wireframe"));
+	GLint floor_tessinner_location = 0;
+	CHECK_GL_ERROR(floor_tessinner_location =
+			glGetUniformLocation(floor_program_id, "tess_level_inner"));
+	GLint floor_tessouter_location = 0;
+	CHECK_GL_ERROR(floor_tessouter_location =
+			glGetUniformLocation(floor_program_id, "tess_level_outer"));
 
 
 
@@ -542,6 +622,8 @@ int main(int argc, char* argv[])
 					&view_matrix[0][0]));
 		CHECK_GL_ERROR(glUniform4fv(floor_light_position_location, 1, &light_position[0]));
 		CHECK_GL_ERROR(glUniform1i(floor_wireframe_location, wireframe));
+		CHECK_GL_ERROR(glUniform1f(floor_tessouter_location, tess_level_outer));
+		CHECK_GL_ERROR(glUniform1f(floor_tessinner_location, tess_level_inner));
 
 		if(toggleFaces) {
 			CHECK_GL_ERROR(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL));
@@ -549,7 +631,8 @@ int main(int argc, char* argv[])
 			CHECK_GL_ERROR(glPolygonMode(GL_FRONT_AND_BACK, GL_LINE));
 		}
 		// Draw our triangles.
-		CHECK_GL_ERROR(glDrawElements(GL_TRIANGLES, floor_faces.size() * 3, GL_UNSIGNED_INT, 0));
+		CHECK_GL_ERROR(glPatchParameteri(GL_PATCH_VERTICES, 3));
+		CHECK_GL_ERROR(glDrawElements(GL_PATCHES, floor_faces.size() * 3, GL_UNSIGNED_INT, 0));
 
 		// Poll and swap.
 		glfwPollEvents();

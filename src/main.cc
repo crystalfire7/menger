@@ -49,6 +49,7 @@ uniform mat4 projection;
 uniform mat4 view;
 in vec4 vs_light_direction[];
 flat out vec4 normal;
+flat out vec4 gs_vert_pos[3];
 out vec4 light_direction;
 out vec4 world_position;
 out vec3 bary;
@@ -58,6 +59,7 @@ void main()
 	// size = gl_in[1].gl_Position.xyz - gl_in[0].gl_Position.xyz;
 	normal = normalize(vec4(cross(gl_in[1].gl_Position.xyz - gl_in[0].gl_Position.xyz, gl_in[2].gl_Position.xyz - gl_in[0].gl_Position.xyz), 0.0f));
 	for (n = 0; n < gl_in.length(); n++) {
+		gs_vert_pos[n] = inverse(view) * gl_in[n].gl_Position;
 		vec3 temp = vec3(0.0f, 0.0f, 0.0f);
 		temp[n] = 1.0f;
 		bary = temp;
@@ -90,16 +92,30 @@ void main()
 const char* floor_fragment_shader =
 R"zzz(#version 400 core
 flat in vec4 normal;
+flat in vec4 gs_vert_pos[3];
 in vec4 light_direction;
 in vec4 world_position;
 in vec3 bary;
 uniform bool wireframe;
 uniform vec4 light_position;
 out vec4 fragment_color;
+
+float distToLine(vec4 p, vec4 l1, vec4 l2){
+
+	return length(cross(p.xyz-l1.xyz, normalize(l2.xyz - l1.xyz)));
+}
+
 void main()
 {
-	if(wireframe && min(min(bary[0], bary[1]),bary[2]) < .0025f) {
+	float thiccness = .025f;
+	if(distToLine(world_position, gs_vert_pos[0], gs_vert_pos[2])<thiccness){
 		fragment_color = vec4(0, 1.0f, 0, 1.0f);
+	} else if(distToLine(world_position, gs_vert_pos[1], gs_vert_pos[2])<thiccness){
+		fragment_color = vec4(0, 1.0f, 0, 1.0f);
+	} else if(distToLine(world_position, gs_vert_pos[0], gs_vert_pos[1])<thiccness){
+		fragment_color = vec4(0, 1.0f, 0, 1.0f);
+	// if(wireframe && min(min(bary[0], bary[1]),bary[2]) < .0025f) {
+	// 	fragment_color = vec4(0, 1.0f, 0, 1.0f);
 	} else {
 		float x = world_position.x;
 		float y = world_position.z;
@@ -187,12 +203,24 @@ flat in vec4 normal;
 in vec4 light_direction;
 in vec4 world_position;
 in vec3 bary;
+flat in vec4 gs_vert_pos[3];
 uniform bool wireframe;
 uniform vec4 light_position;
 out vec4 fragment_color;
+
+float distToLine(vec4 p, vec4 l1, vec4 l2){
+
+	return length(cross(p.xyz-l1.xyz, normalize(l2.xyz - l1.xyz)));
+}
+
 void main()
 {
-	if(wireframe && min(min(bary[0], bary[1]),bary[2]) < .0025f) {
+	float thiccness = .025f;
+	if(distToLine(world_position, gs_vert_pos[0], gs_vert_pos[2])<thiccness){
+		fragment_color = vec4(0, 1.0f, 0, 1.0f);
+	} else if(distToLine(world_position, gs_vert_pos[1], gs_vert_pos[2])<thiccness){
+		fragment_color = vec4(0, 1.0f, 0, 1.0f);
+	} else if(distToLine(world_position, gs_vert_pos[0], gs_vert_pos[1])<thiccness){
 		fragment_color = vec4(0, 1.0f, 0, 1.0f);
 	} else {
 		fragment_color = vec4(0.0f, 0.0f, 1.0f, 1.0f);

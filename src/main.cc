@@ -4,6 +4,8 @@
 #include <vector>
 #include <memory>
 
+#include <time.h>
+
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/string_cast.hpp>
@@ -14,6 +16,8 @@
 #include <debuggl.h>
 #include "menger.h"
 #include "camera.h"
+
+#define BILLION  1000000000L
 
 int window_width = 800, window_height = 600;
 
@@ -688,6 +692,9 @@ int main(int argc, char* argv[])
 	GLint ocean_tessouter_location = 0;
 	CHECK_GL_ERROR(ocean_tessouter_location =
 			glGetUniformLocation(ocean_program_id, "tess_level_outer"));
+	GLint ocean_time_location = 0;
+	CHECK_GL_ERROR(ocean_time_location =
+			glGetUniformLocation(ocean_program_id, "time"));
 
 
 	glm::vec4 light_position = glm::vec4(-10.0f, 10.0f, 0.0f, 1.0f);
@@ -787,7 +794,7 @@ int main(int argc, char* argv[])
 		// Draw our triangles.
 
 		CHECK_GL_ERROR(glPatchParameteri(GL_PATCH_VERTICES, 3));
-		CHECK_GL_ERROR(glDrawElements(GL_PATCHES, floor_faces.size() * 3 * (ocean_mode ? 0 : 1), GL_UNSIGNED_INT, 0));
+		CHECK_GL_ERROR(glDrawElements(GL_PATCHES, floor_faces.size() * 3 * !ocean_mode, GL_UNSIGNED_INT, 0));
 
 		//ocean drawing
 		CHECK_GL_ERROR(glUseProgram(ocean_program_id));
@@ -804,10 +811,14 @@ int main(int argc, char* argv[])
 		CHECK_GL_ERROR(glUniform1i(ocean_wireframe_location, wireframe));
 		CHECK_GL_ERROR(glUniform1f(ocean_tessouter_location, tess_level_outer));
 		CHECK_GL_ERROR(glUniform1f(ocean_tessinner_location, tess_level_inner));
+		struct timespec times;
+		clock_gettime(CLOCK_REALTIME, &times);
+
+		CHECK_GL_ERROR(glUniform1f(ocean_time_location, times.tv_sec + times.tv_nsec/BILLION));
 
 		// Draw our triangles.
 		CHECK_GL_ERROR(glPatchParameteri(GL_PATCH_VERTICES, 4));
-		CHECK_GL_ERROR(glDrawElements(GL_PATCHES, ocean_faces.size() * 4 * (ocean_mode ? 1 : 0), GL_UNSIGNED_INT, 0));
+		CHECK_GL_ERROR(glDrawElements(GL_PATCHES, ocean_faces.size() * 4 * ocean_mode, GL_UNSIGNED_INT, 0));
 
 
 		// Poll and swap.

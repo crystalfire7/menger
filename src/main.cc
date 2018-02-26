@@ -111,15 +111,13 @@ float distToLine(vec4 p, vec4 l1, vec4 l2){
 
 void main()
 {
-	float thiccness = .025f;
-	if(distToLine(world_position, gs_vert_pos[0], gs_vert_pos[2])<thiccness){
+	float thiccness = .01f;
+	if(wireframe && distToLine(world_position, gs_vert_pos[0], gs_vert_pos[2])<thiccness){
 		fragment_color = vec4(0, 1.0f, 0, 1.0f);
-	} else if(distToLine(world_position, gs_vert_pos[1], gs_vert_pos[2])<thiccness){
+	} else if(wireframe && distToLine(world_position, gs_vert_pos[1], gs_vert_pos[2])<thiccness){
 		fragment_color = vec4(0, 1.0f, 0, 1.0f);
-	} else if(distToLine(world_position, gs_vert_pos[0], gs_vert_pos[1])<thiccness){
+	} else if(wireframe && distToLine(world_position, gs_vert_pos[0], gs_vert_pos[1])<thiccness){
 		fragment_color = vec4(0, 1.0f, 0, 1.0f);
-	// if(wireframe && min(min(bary[0], bary[1]),bary[2]) < .0025f) {
-	// 	fragment_color = vec4(0, 1.0f, 0, 1.0f);
 	} else {
 		float x = world_position.x;
 		float y = world_position.z;
@@ -198,12 +196,64 @@ void main()
 	vec4 first = mix(gl_in[0].gl_Position, gl_in[1].gl_Position, gl_TessCoord.x);
 	vec4 second = mix(gl_in[3].gl_Position, gl_in[2].gl_Position, gl_TessCoord.x);
 	gl_Position = mix(first, second, gl_TessCoord.y);
+	vec4 firstLight = mix(tcs_light_direction[0], tcs_light_direction[1], gl_TessCoord.x);
+	vec4 secondLight = mix(tcs_light_direction[3], tcs_light_direction[2], gl_TessCoord.x);
+	vs_light_direction = mix(firstLight, secondLight, gl_TessCoord.y);
+}
+)zzz";
+
+const char* ocean_geometry_shader =
+R"zzz(#version 400 core
+layout (triangles) in;
+layout (triangle_strip, max_vertices = 3) out;
+uniform mat4 projection;
+uniform mat4 view;
+uniform float time;
+in vec4 vs_light_direction[];
+out vec4 normal;
+flat out vec4 gs_vert_pos[3];
+out vec4 light_direction;
+out vec4 world_position;
+out vec3 bary;
+
+float vertexHeight(float x, float z, vec2 direction, float freq, float t, float speed, float amplitude) {
+	return amplitude * sin(dot(direction, vec2(x,z)) * freq + t * speed * freq);
+}
+
+vec4 vertexNormal(float x, float z, vec2 direction, float freq, float t, float speed, float amplitude) {
+	float d = freq * amplitude * cos(dot(direction, vec2(x,z)) * freq + time * speed * freq);
+	float dx = direction.x * d;
+	float dz = direction.y * d;
+	return vec4(-dx, 1.0f, -dz, 0.0f);
+}
+
+void main()
+{
+	int n = 0;
+	//normal = normalize(vec4(cross(gl_in[1].gl_Position.xyz - gl_in[0].gl_Position.xyz, gl_in[2].gl_Position.xyz - gl_in[0].gl_Position.xyz), 0.0f));
+	for (n = 0; n < gl_in.length(); n++) {
+		vec4 wp = inverse(view) * gl_in[n].gl_Position;
+		//sum per wave
+		wp.y += vertexHeight(wp.x,  wp.z, vec2(1.0f, 0.0), 0.5f, time, 1.0f, 0.5f);
+		wp.y += vertexHeight(wp.x,  wp.z, normalize(vec2(1.0f, 1.0f)), 1.0f, time, 1.0f, 0.3f);
+		world_position = wp;
+		gs_vert_pos[n] = wp;
+		normal = normalize(view * (vertexNormal(wp.x,  wp.z, vec2(1.0f, 0.0), 0.5f, time, 1.0f, 0.5f) 
+		+ vertexNormal(wp.x,  wp.z, normalize(vec2(1.0f, 1.0f)), 1.0f, time, 1.0f, 0.3f)));
+		vec3 temp = vec3(0.0f, 0.0f, 0.0f);
+		temp[n] = 1.0f;
+		bary = temp;
+		light_direction = vs_light_direction[n];
+		gl_Position = projection * view * wp;
+		EmitVertex();
+	}
+	EndPrimitive();
 }
 )zzz";
 
 const char* ocean_fragment_shader =
 R"zzz(#version 400 core
-flat in vec4 normal;
+in vec4 normal;
 in vec4 light_direction;
 in vec4 world_position;
 in vec3 bary;
@@ -219,15 +269,18 @@ float distToLine(vec4 p, vec4 l1, vec4 l2){
 
 void main()
 {
-	float thiccness = .025f;
-	if(distToLine(world_position, gs_vert_pos[0], gs_vert_pos[2])<thiccness){
+	float thiccness = .01f;
+	if(wireframe && distToLine(world_position, gs_vert_pos[0], gs_vert_pos[2])<thiccness){
 		fragment_color = vec4(0, 1.0f, 0, 1.0f);
-	} else if(distToLine(world_position, gs_vert_pos[1], gs_vert_pos[2])<thiccness){
+	} else if(wireframe && distToLine(world_position, gs_vert_pos[1], gs_vert_pos[2])<thiccness){
 		fragment_color = vec4(0, 1.0f, 0, 1.0f);
-	} else if(distToLine(world_position, gs_vert_pos[0], gs_vert_pos[1])<thiccness){
+	} else if(wireframe && distToLine(world_position, gs_vert_pos[0], gs_vert_pos[1])<thiccness){
 		fragment_color = vec4(0, 1.0f, 0, 1.0f);
 	} else {
-		fragment_color = vec4(0.0f, 0.0f, 1.0f, 1.0f);
+		vec4 color = vec4(0.0, 0.467f, 0.745f, 1.0f);
+		float dot_nl = dot(normalize(light_direction), normalize(normal));
+		dot_nl = clamp(dot_nl, 0.0, 1.0);
+		fragment_color = clamp(dot_nl * color, 0.0, 1.0);
 	}
 }
 )zzz";
@@ -590,6 +643,14 @@ int main(int argc, char* argv[])
 	glCompileShader(ocean_tesseval_shader_id);
 	CHECK_GL_SHADER_ERROR(ocean_tesseval_shader_id);
 
+	GLuint ocean_geometry_shader_id = 0;
+	const char* ocean_geometry_source_pointer = ocean_geometry_shader;
+	CHECK_GL_ERROR(ocean_geometry_shader_id = glCreateShader(GL_GEOMETRY_SHADER));
+	CHECK_GL_ERROR(glShaderSource(ocean_geometry_shader_id, 1,
+				&ocean_geometry_source_pointer, nullptr));
+	glCompileShader(ocean_geometry_shader_id);
+	CHECK_GL_SHADER_ERROR(ocean_geometry_shader_id);
+
 	GLuint ocean_fragment_shader_id = 0;
 	const char* ocean_fragment_source_pointer = ocean_fragment_shader;
 	CHECK_GL_ERROR(ocean_fragment_shader_id = glCreateShader(GL_FRAGMENT_SHADER));
@@ -665,7 +726,7 @@ int main(int argc, char* argv[])
 	CHECK_GL_ERROR(glAttachShader(ocean_program_id, ocean_fragment_shader_id));
 	CHECK_GL_ERROR(glAttachShader(ocean_program_id, ocean_tesscontrol_shader_id));
 	CHECK_GL_ERROR(glAttachShader(ocean_program_id, ocean_tesseval_shader_id));
-	CHECK_GL_ERROR(glAttachShader(ocean_program_id, geometry_shader_id));
+	CHECK_GL_ERROR(glAttachShader(ocean_program_id, ocean_geometry_shader_id));
 
 	// Bind attributes.
 	CHECK_GL_ERROR(glBindAttribLocation(ocean_program_id, 0, "vertex_position"));
@@ -696,6 +757,8 @@ int main(int argc, char* argv[])
 	CHECK_GL_ERROR(ocean_time_location =
 			glGetUniformLocation(ocean_program_id, "time"));
 
+	struct timespec startTime;
+	clock_gettime(CLOCK_REALTIME, &startTime);
 
 	glm::vec4 light_position = glm::vec4(-10.0f, 10.0f, 0.0f, 1.0f);
 	float aspect = 0.0f;
@@ -813,8 +876,8 @@ int main(int argc, char* argv[])
 		CHECK_GL_ERROR(glUniform1f(ocean_tessinner_location, tess_level_inner));
 		struct timespec times;
 		clock_gettime(CLOCK_REALTIME, &times);
-
-		CHECK_GL_ERROR(glUniform1f(ocean_time_location, times.tv_sec + times.tv_nsec/BILLION));
+		float t = (times.tv_sec - startTime.tv_sec) + (float(times.tv_nsec - startTime.tv_nsec))/BILLION;
+		CHECK_GL_ERROR(glUniform1f(ocean_time_location, t));
 
 		// Draw our triangles.
 		CHECK_GL_ERROR(glPatchParameteri(GL_PATCH_VERTICES, 4));

@@ -234,12 +234,12 @@ void main()
 	for (n = 0; n < gl_in.length(); n++) {
 		vec4 wp = inverse(view) * gl_in[n].gl_Position;
 		//sum per wave
-		wp.y += vertexHeight(wp.x,  wp.z, vec2(1.0f, 0.0), 0.5f, time, 1.0f, 0.5f);
-		wp.y += vertexHeight(wp.x,  wp.z, normalize(vec2(1.0f, 1.0f)), 1.0f, time, 1.0f, 0.3f);
+		wp.y += vertexHeight(wp.x,  wp.z, vec2(1.0f, 0.0), 0.5f, time, 1.0f, 0.4f);
+		wp.y += vertexHeight(wp.x,  wp.z, normalize(vec2(1.0f, 1.0f)), 1.0f, time, 1.0f, 0.5f);
 		world_position = wp;
 		gs_vert_pos[n] = wp;
-		normal = normalize(view * (vertexNormal(wp.x,  wp.z, vec2(1.0f, 0.0), 0.5f, time, 1.0f, 0.5f) 
-		+ vertexNormal(wp.x,  wp.z, normalize(vec2(1.0f, 1.0f)), 1.0f, time, 1.0f, 0.3f)));
+		normal = normalize(view * (vertexNormal(wp.x,  wp.z, vec2(1.0f, 0.0), 0.5f, time, 1.0f, 0.4f) 
+		+ vertexNormal(wp.x,  wp.z, normalize(vec2(1.0f, 1.0f)), 1.0f, time, 1.0f, 0.5f)));
 		vec3 temp = vec3(0.0f, 0.0f, 0.0f);
 		temp[n] = 1.0f;
 		bary = temp;
@@ -259,6 +259,7 @@ in vec4 world_position;
 in vec3 bary;
 flat in vec4 gs_vert_pos[3];
 uniform bool wireframe;
+uniform mat4 view;
 uniform vec4 light_position;
 out vec4 fragment_color;
 
@@ -280,7 +281,11 @@ void main()
 		vec4 color = vec4(0.0, 0.467f, 0.745f, 1.0f);
 		float dot_nl = dot(normalize(light_direction), normalize(normal));
 		dot_nl = clamp(dot_nl, 0.0, 1.0);
-		fragment_color = clamp(dot_nl * color, 0.0, 1.0);
+		vec4 diffuse = clamp(dot_nl * color, 0.0, 1.0);
+		vec4 r = normalize(reflect(-light_direction, normal));
+		vec4 v = normalize(view * (inverse(view)[3] - world_position));
+		vec4 specular = vec4(1.0,1.0,1.0,1.0) * pow(clamp(max(dot(v, r), 0.0f), 0.0f, 1.0f), 12);
+		fragment_color = clamp(diffuse + specular, 0.0, 1.0);
 	}
 }
 )zzz";

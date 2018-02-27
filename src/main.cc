@@ -250,7 +250,8 @@ float tidalHeight(float x, float z, float timePassed, float width, float height)
 vec4 tidalNormal(float x, float z, float timePassed, float width, float height) {
 	x -= timePassed;
 	float d = height * -exp(-(pow(x, 2) + pow(z, 2)) / (2 * pow(width, 2))) / (2 * 3.14159 * pow(width, 4));
-	return vec4(cross(vec3(x * d, 0.0f, 0.0f), vec3(0.0f, 0.0f, z * d)), 0.0f);
+	return -vec4(x*d, 1.0f, z*d, 0.0f);
+	// return -vec4(cross(vec3(x * d, 1.0f, 0.0f), vec3(0.0f, 1.0f, z * d)), 0.0f);
 }
 
 void main()
@@ -261,12 +262,13 @@ void main()
 		//sum per wave
 		wp.y += vertexHeight(wp.x, wp.z, vec2(1.0f, 0.0), 0.5f, time, 1.0f, 0.4f);
 		wp.y += vertexHeight(wp.x, wp.z, normalize(vec2(1.0f, 1.0f)), 1.0f, time, 1.0f, 0.5f);
-		wp.y += tidalHeight(wp.x, wp.z, time - tidal_start_time, 1.0f, 30.0f);
+		float tidalHeight = tidalHeight(wp.x, wp.z, time - tidal_start_time, 1.0f, 30.0f);
+		wp.y += tidalHeight;
 		world_position = wp;
 		gs_vert_pos[n] = wp;
 		normal = normalize(view * 
 			(
-			tidalNormal(wp.x, wp.z, time - tidal_start_time, 1.0f, 30.0f)
+			(tidalNormal(wp.x, wp.z, time - tidal_start_time, 1.0f, 30.0f))
 			+ vertexNormal(wp.x,  wp.z, vec2(1.0f, 0.0), 0.5f, time, 1.0f, 0.4f) 
 			+ vertexNormal(wp.x,  wp.z, normalize(vec2(1.0f, 1.0f)), 1.0f, time, 1.0f, 0.5f)
 			)
@@ -315,8 +317,10 @@ void main()
 		vec4 diffuse = clamp(dot_nl * color, 0.0, 1.0);
 		vec4 r = normalize(reflect(-light_direction, normal));
 		vec4 v = normalize(view * (inverse(view)[3] - world_position));
+		// vec4 specular = vec4(0.0,9)
 		vec4 specular = vec4(1.0,1.0,1.0,1.0) * pow(clamp(max(dot(v, r), 0.0f), 0.0f, 1.0f), 12);
 		vec4 ambient = vec4(0, 0, .2, 1.0);
+		// fragment_color = vec4(((inverse(view) * normal)).xyz, 1.0);
 		fragment_color = clamp(diffuse + specular, ambient, vec4(1.0,1.0,1.0,1.0));
 	}
 }

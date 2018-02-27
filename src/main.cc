@@ -14,8 +14,13 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <debuggl.h>
+
+
 #include "menger.h"
 #include "camera.h"
+
+#include "../lib/utgraphicsutil/image.h"
+#include "../lib/utgraphicsutil/jpegio.h"
 
 #define BILLION  1000000000L
 
@@ -25,7 +30,7 @@ int window_width = 800, window_height = 600;
 enum { kVertexBuffer, kIndexBuffer, kNumVbos };
 
 // These are our VAOs.
-enum { kGeometryVao, kFloorVao, kOceanVao, kNumVaos };
+enum { kGeometryVao, kFloorVao, kOceanVao, kSkyboxVao, kNumVaos };
 
 GLuint g_array_objects[kNumVaos];  // This will store the VAO descriptors.
 GLuint g_buffer_objects[kNumVaos][kNumVbos];  // These will store VBO descriptors.
@@ -38,8 +43,10 @@ in vec4 vertex_position;
 uniform mat4 view;
 uniform vec4 light_position;
 out vec4 vs_light_direction;
+out vec4 vs_world_pos;
 void main()
 {
+	vs_world_pos = vertex_position;
 	gl_Position = view * vertex_position;
 	vs_light_direction = -gl_Position + view * light_position;
 }
@@ -285,8 +292,42 @@ void main()
 		vec4 r = normalize(reflect(-light_direction, normal));
 		vec4 v = normalize(view * (inverse(view)[3] - world_position));
 		vec4 specular = vec4(1.0,1.0,1.0,1.0) * pow(clamp(max(dot(v, r), 0.0f), 0.0f, 1.0f), 12);
-		fragment_color = clamp(diffuse + specular, 0.0, 1.0);
+		vec4 ambient = vec4(0, 0, .2, 1.0);
+		fragment_color = clamp(diffuse + specular, ambient, vec4(1.0,1.0,1.0,1.0));
 	}
+}
+)zzz";
+
+
+const char* skybox_vertex_shader =
+R"zzz(#version 400 core
+in vec4 vertex_position;
+uniform mat4 view;
+uniform mat4 projection;
+out vec4 vs_world_pos;
+void main()
+{
+	vs_world_pos = vertex_position;
+	gl_Position = projection * view * vertex_position;
+
+}
+)zzz";
+
+
+
+const char* skybox_fragment_shader =
+R"zzz(#version 400 core
+in vec4 vs_world_pos;
+flat in vec4 gs_vert_pos[3];
+uniform mat4 view;
+uniform mat4 projection;
+uniform samplerCube skybox;
+out vec4 fragment_color;
+
+void main()
+{
+	fragment_color = vec4(1.0, 0.0, 0.5, 1.0);
+	// fragment_color = texture(skybox, vs_world_pos.xyz);
 }
 )zzz";
 
@@ -328,6 +369,16 @@ CreateTriangle(std::vector<glm::vec4>& vertices,
 	vertices.push_back(glm::vec4(0.0f, 0.5f, -0.5f, 1.0f));
 	indices.push_back(glm::uvec3(0, 1, 2));
 }
+
+
+// float*
+// create_skybox()
+// {
+// 	float SIZE = 50.0f;
+	
+// 	return VERTICES;
+// }
+
 
 // FIXME: Save geometry to OBJ file
 void
@@ -582,6 +633,176 @@ int main(int argc, char* argv[])
 				sizeof(uint32_t) * ocean_faces.size() * 4,
 				ocean_faces.data(), GL_STATIC_DRAW));
 
+// Switch to the Skybox VAO
+	CHECK_GL_ERROR(glBindVertexArray(g_array_objects[kSkyboxVao]));
+	CHECK_GL_ERROR(glGenBuffers(kNumVbos, &g_buffer_objects[kSkyboxVao][0]));
+	CHECK_GL_ERROR(glBindBuffer(GL_ARRAY_BUFFER, g_buffer_objects[kSkyboxVao][kVertexBuffer]));
+	float SIZE = 50.0f;
+	float sky_pts[] = {        
+	    -SIZE,  SIZE, -SIZE,
+	    -SIZE, -SIZE, -SIZE,
+	    SIZE, -SIZE, -SIZE,
+	     SIZE, -SIZE, -SIZE,
+	     SIZE,  SIZE, -SIZE,
+	    -SIZE,  SIZE, -SIZE,
+
+	    -SIZE, -SIZE,  SIZE,
+	    -SIZE, -SIZE, -SIZE,
+	    -SIZE,  SIZE, -SIZE,
+	    -SIZE,  SIZE, -SIZE,
+	    -SIZE,  SIZE,  SIZE,
+	    -SIZE, -SIZE,  SIZE,
+
+	     SIZE, -SIZE, -SIZE,
+	     SIZE, -SIZE,  SIZE,
+	     SIZE,  SIZE,  SIZE,
+	     SIZE,  SIZE,  SIZE,
+	     SIZE,  SIZE, -SIZE,
+	     SIZE, -SIZE, -SIZE,
+
+	    -SIZE, -SIZE,  SIZE,
+	    -SIZE,  SIZE,  SIZE,
+	     SIZE,  SIZE,  SIZE,
+	     SIZE,  SIZE,  SIZE,
+	     SIZE, -SIZE,  SIZE,
+	    -SIZE, -SIZE,  SIZE,
+
+	    -SIZE,  SIZE, -SIZE,
+	     SIZE,  SIZE, -SIZE,
+	     SIZE,  SIZE,  SIZE,
+	     SIZE,  SIZE,  SIZE,
+	    -SIZE,  SIZE,  SIZE,
+	    -SIZE,  SIZE, -SIZE,
+
+	    -SIZE, -SIZE, -SIZE,
+	    -SIZE, -SIZE,  SIZE,
+	     SIZE, -SIZE, -SIZE,
+	     SIZE, -SIZE, -SIZE,
+	    -SIZE, -SIZE,  SIZE,
+	     SIZE, -SIZE,  SIZE
+	};
+	CHECK_GL_ERROR(glBufferData(GL_ARRAY_BUFFER, 3 * 36 * sizeof(float), &sky_pts, GL_STATIC_DRAW));
+
+
+
+	// more skybox
+
+
+
+	CHECK_GL_ERROR(glActiveTexture(GL_TEXTURE0));
+	// CHECK_GL_ERROR(glEnable(GL_TEXTURE_CUBE_MAP));
+	GLuint cubemap_texture;
+	CHECK_GL_ERROR(glGenTextures(1, &cubemap_texture));
+	
+	Image px;
+	if(LoadJPEG("../cubemap_iceriver/posx.jpg", &px)){
+		CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
+		CHECK_GL_ERROR(glTexImage2D(
+			GL_TEXTURE_CUBE_MAP_POSITIVE_X,
+			0,
+			GL_RGBA,
+			px.width,
+			px.height,
+			0,
+			GL_RGB,
+			GL_UNSIGNED_BYTE,
+			px.bytes.data()
+			));
+	}else{
+		std::cout << "LOADING POSX SKYBOX FAILED" << std::endl;
+	}
+	Image nx;
+	if(LoadJPEG("../cubemap_iceriver/negx.jpg", &nx)){
+		CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
+		CHECK_GL_ERROR(glTexImage2D(
+			GL_TEXTURE_CUBE_MAP_NEGATIVE_X,
+			0,
+			GL_RGBA,
+			px.width,
+			px.height,
+			0,
+			GL_RGB,
+			GL_UNSIGNED_BYTE,
+			nx.bytes.data()
+			));
+	}else{
+		std::cout << "LOADING NEGX SKYBOX FAILED" << std::endl;
+	}
+	Image py;
+	if(LoadJPEG("../cubemap_iceriver/posy.jpg", &py)){
+		CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
+		CHECK_GL_ERROR(glTexImage2D(
+			GL_TEXTURE_CUBE_MAP_POSITIVE_Y,
+			0,
+			GL_RGBA,
+			px.width,
+			px.height,
+			0,
+			GL_RGB,
+			GL_UNSIGNED_BYTE,
+			py.bytes.data()
+			));
+	}else{
+		std::cout << "LOADING POSY SKYBOX FAILED" << std::endl;
+	}
+	Image ny;
+	if(LoadJPEG("../cubemap_iceriver/negy.jpg", &ny)){
+		CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
+		CHECK_GL_ERROR(glTexImage2D(
+			GL_TEXTURE_CUBE_MAP_NEGATIVE_Y,
+			0,
+			GL_RGBA,
+			px.width,
+			px.height,
+			0,
+			GL_RGB,
+			GL_UNSIGNED_BYTE,
+			ny.bytes.data()
+			));
+	}else{
+		std::cout << "LOADING NEGZ SKYBOX FAILED" << std::endl;
+	}
+	Image pz;
+	if(LoadJPEG("../cubemap_iceriver/posz.jpg", &pz)){
+		CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
+		CHECK_GL_ERROR(glTexImage2D(
+			GL_TEXTURE_CUBE_MAP_POSITIVE_Z,
+			0,
+			GL_RGBA,
+			px.width,
+			px.height,
+			0,
+			GL_RGB,
+			GL_UNSIGNED_BYTE,
+			pz.bytes.data()
+			));
+	}else{
+		std::cout << "LOADING POSZ SKYBOX FAILED" << std::endl;
+	}
+	Image nz;
+	if(LoadJPEG("../cubemap_iceriver/negz.jpg", &nz)){
+		CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
+		CHECK_GL_ERROR(glTexImage2D(
+			GL_TEXTURE_CUBE_MAP_NEGATIVE_Z,
+			0,
+			GL_RGBA,
+			px.width,
+			px.height,
+			0,
+			GL_RGB,
+			GL_UNSIGNED_BYTE,
+			nz.bytes.data()
+			));
+	}else{
+		std::cout << "LOADING NEGZ SKYBOX FAILED" << std::endl;
+	}
+	CHECK_GL_ERROR(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+  	CHECK_GL_ERROR(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+  	CHECK_GL_ERROR(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE));
+  	CHECK_GL_ERROR(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+  	CHECK_GL_ERROR(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+
+
 
 	// Setup vertex shader.
 	GLuint vertex_shader_id = 0;
@@ -632,6 +853,8 @@ int main(int argc, char* argv[])
 	glCompileShader(floor_tesseval_shader_id);
 	CHECK_GL_SHADER_ERROR(floor_tesseval_shader_id);
 
+	// ocean
+
 	GLuint ocean_tesscontrol_shader_id = 0;
 	const char* ocean_tesscontrol_source_pointer = ocean_tesscontrol_shader;
 	CHECK_GL_ERROR(ocean_tesscontrol_shader_id = glCreateShader(GL_TESS_CONTROL_SHADER));
@@ -663,6 +886,23 @@ int main(int argc, char* argv[])
 				&ocean_fragment_source_pointer, nullptr));
 	glCompileShader(ocean_fragment_shader_id);
 	CHECK_GL_SHADER_ERROR(ocean_fragment_shader_id);
+
+	// skybox
+
+	GLuint skybox_vertex_shader_id = 0;
+	const char* skybox_vertex_source_pointer = skybox_vertex_shader;
+	CHECK_GL_ERROR(skybox_vertex_shader_id = glCreateShader(GL_VERTEX_SHADER));
+	CHECK_GL_ERROR(glShaderSource(skybox_vertex_shader_id, 1, &skybox_vertex_source_pointer, nullptr));
+	glCompileShader(skybox_vertex_shader_id);
+	CHECK_GL_SHADER_ERROR(skybox_vertex_shader_id);
+
+	GLuint skybox_fragment_shader_id = 0;
+	const char* skybox_fragment_source_pointer = skybox_fragment_shader;
+	CHECK_GL_ERROR(skybox_fragment_shader_id = glCreateShader(GL_FRAGMENT_SHADER));
+	CHECK_GL_ERROR(glShaderSource(skybox_fragment_shader_id, 1,
+				&skybox_fragment_source_pointer, nullptr));
+	glCompileShader(skybox_fragment_shader_id);
+	CHECK_GL_SHADER_ERROR(skybox_fragment_shader_id);
 
 	// Let's create our program.
 	GLuint program_id = 0;
@@ -724,6 +964,32 @@ int main(int argc, char* argv[])
 	CHECK_GL_ERROR(floor_tessouter_location =
 			glGetUniformLocation(floor_program_id, "tess_level_outer"));
 
+
+// skybox program
+	GLuint skybox_program_id = 0;
+	CHECK_GL_ERROR(skybox_program_id = glCreateProgram());
+	CHECK_GL_ERROR(glAttachShader(skybox_program_id, vertex_shader_id));
+	CHECK_GL_ERROR(glAttachShader(skybox_program_id, skybox_fragment_shader_id));
+
+	// Bind attributes.
+	CHECK_GL_ERROR(glBindAttribLocation(skybox_program_id, 0, "vertex_position"));
+	CHECK_GL_ERROR(glBindFragDataLocation(skybox_program_id, 0, "fragment_color"));
+	glLinkProgram(skybox_program_id);
+	CHECK_GL_PROGRAM_ERROR(skybox_program_id);
+
+	GLint skybox_projection_matrix_location = 0;
+	CHECK_GL_ERROR(skybox_projection_matrix_location =
+			glGetUniformLocation(skybox_program_id, "projection"));
+	GLint skybox_view_matrix_location = 0;
+	CHECK_GL_ERROR(skybox_view_matrix_location =
+			glGetUniformLocation(skybox_program_id, "view"));
+	GLint skybox_skybox_location = 0;
+	CHECK_GL_ERROR(skybox_skybox_location =
+			glGetUniformLocation(skybox_program_id, "skybox"));
+
+	
+
+
 //ocean program
 	GLuint ocean_program_id = 0;
 	CHECK_GL_ERROR(ocean_program_id = glCreateProgram());
@@ -732,6 +998,7 @@ int main(int argc, char* argv[])
 	CHECK_GL_ERROR(glAttachShader(ocean_program_id, ocean_tesscontrol_shader_id));
 	CHECK_GL_ERROR(glAttachShader(ocean_program_id, ocean_tesseval_shader_id));
 	CHECK_GL_ERROR(glAttachShader(ocean_program_id, ocean_geometry_shader_id));
+
 
 	// Bind attributes.
 	CHECK_GL_ERROR(glBindAttribLocation(ocean_program_id, 0, "vertex_position"));
@@ -761,6 +1028,12 @@ int main(int argc, char* argv[])
 	GLint ocean_time_location = 0;
 	CHECK_GL_ERROR(ocean_time_location =
 			glGetUniformLocation(ocean_program_id, "time"));
+	// GLint ocean_skybox_location = 0;
+	// CHECK_GL_ERROR(ocean_skybox_location =
+	// 		glGetUniformLocation(ocean_skybox_id, "skybox"));
+
+
+
 
 	struct timespec startTime;
 	clock_gettime(CLOCK_REALTIME, &startTime);
@@ -777,11 +1050,38 @@ int main(int argc, char* argv[])
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glDepthFunc(GL_LESS);
 
+		// Compute the projection matrix.
+		aspect = static_cast<float>(window_width) / window_height;
+		glm::mat4 projection_matrix =
+			glm::perspective(glm::radians(45.0f), aspect, 0.0001f, 1000.0f);
+
+		// Compute the view matrix
+		// FIXME: change eye and center through mouse/keyboard events.
+		glm::mat4 view_matrix = g_camera.get_view_matrix();
+
+
+		// skybox
+
+		CHECK_GL_ERROR(glBindVertexArray(g_array_objects[kSkyboxVao]));
+		CHECK_GL_ERROR(glBindBuffer(GL_ARRAY_BUFFER, g_buffer_objects[kSkyboxVao][kVertexBuffer]));
+		CHECK_GL_ERROR(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_buffer_objects[kSkyboxVao][kIndexBuffer]));
+		glDepthMask(GL_FALSE);
+		CHECK_GL_ERROR(glUseProgram(skybox_program_id));
+		CHECK_GL_ERROR(glUniformMatrix4fv(skybox_projection_matrix_location, 1, GL_FALSE,
+					&projection_matrix[0][0]));
+		CHECK_GL_ERROR(glUniformMatrix4fv(skybox_view_matrix_location, 1, GL_FALSE,
+					&view_matrix[0][0]));
+		CHECK_GL_ERROR(glActiveTexture(GL_TEXTURE0));
+		CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
+		CHECK_GL_ERROR(glDrawArrays(GL_TRIANGLES, 0, 36));
+		// CHECK_GL_ERROR(glDrawElements(GL_TRIANGLES, obj_faces.size() * 3, GL_UNSIGNED_INT, 0));
+		glDepthMask(GL_TRUE);
+
+
 		if(save_obj){
 			SaveObj("geometry.obj", obj_vertices, obj_faces);
 			save_obj = false;
 		}
-
 		// Switch to the Geometry VAO.
 		CHECK_GL_ERROR(glBindVertexArray(g_array_objects[kGeometryVao]));
 		CHECK_GL_ERROR(glBindBuffer(GL_ARRAY_BUFFER, g_buffer_objects[kGeometryVao][kVertexBuffer]));
@@ -805,15 +1105,7 @@ int main(int argc, char* argv[])
 
 		}
 
-		// Compute the projection matrix.
-		aspect = static_cast<float>(window_width) / window_height;
-		glm::mat4 projection_matrix =
-			glm::perspective(glm::radians(45.0f), aspect, 0.0001f, 1000.0f);
-
-		// Compute the view matrix
-		// FIXME: change eye and center through mouse/keyboard events.
-		glm::mat4 view_matrix = g_camera.get_view_matrix();
-
+		
 		// Use our program.
 		CHECK_GL_ERROR(glUseProgram(program_id));
 

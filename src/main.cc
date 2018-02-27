@@ -176,18 +176,25 @@ layout (vertices = 4) out;
 in vec4 vs_light_direction[];
 uniform float tess_level_inner;
 uniform float tess_level_outer;
+uniform float tidal_start_time;
+uniform float time;
+uniform mat4 view;
 out vec4 tcs_light_direction[];
 void main()
 {
 	gl_out[gl_InvocationID].gl_Position = gl_in[gl_InvocationID].gl_Position;
 	tcs_light_direction[gl_InvocationID] = vs_light_direction[gl_InvocationID];
 	if(gl_InvocationID == 0){
-		gl_TessLevelInner[0] = tess_level_inner;
-		gl_TessLevelInner[1] = tess_level_inner;
-		gl_TessLevelOuter[0] = tess_level_outer;
-		gl_TessLevelOuter[1] = tess_level_outer;
-		gl_TessLevelOuter[2] = tess_level_outer;
-		gl_TessLevelOuter[3] = tess_level_outer;
+		vec4 avg = (gl_in[0].gl_Position + gl_in[1].gl_Position + gl_in[2].gl_Position + gl_in[3].gl_Position) * .25f;
+		vec4 distance = view * vec4(time - tidal_start_time, -2.0f, 0.0f, 1.0f);
+		float d = length(avg - distance);
+		float adapt = clamp(4 - d, 1.0f, 4.0f);
+		gl_TessLevelInner[0] = tess_level_inner * adapt;
+		gl_TessLevelInner[1] = tess_level_inner * adapt;
+		gl_TessLevelOuter[0] = tess_level_outer * adapt;
+		gl_TessLevelOuter[1] = tess_level_outer * adapt;
+		gl_TessLevelOuter[2] = tess_level_outer * adapt;
+		gl_TessLevelOuter[3] = tess_level_outer * adapt;
 	}
 }
 )zzz";
@@ -216,6 +223,7 @@ layout (triangle_strip, max_vertices = 3) out;
 uniform mat4 projection;
 uniform mat4 view;
 uniform float time;
+uniform float tidal_start_time;
 in vec4 vs_light_direction[];
 out vec4 normal;
 flat out vec4 gs_vert_pos[3];
@@ -234,19 +242,35 @@ vec4 vertexNormal(float x, float z, vec2 direction, float freq, float t, float s
 	return vec4(-dx, 1.0f, -dz, 0.0f);
 }
 
+float tidalHeight(float x, float z, float timePassed, float width, float height) {
+	x -= timePassed;
+	return height * exp(-(pow(x, 2) + pow(z, 2)) / (2 * pow(width, 2))) / (2 * 3.14159 * pow(width, 2));
+}
+
+vec4 tidalNormal(float x, float z, float timePassed, float width, float height) {
+	x -= timePassed;
+	float d = height * -exp(-(pow(x, 2) + pow(z, 2)) / (2 * pow(width, 2))) / (2 * 3.14159 * pow(width, 4));
+	return vec4(cross(vec3(x * d, 0.0f, 0.0f), vec3(0.0f, 0.0f, z * d)), 0.0f);
+}
+
 void main()
 {
 	int n = 0;
-	//normal = normalize(vec4(cross(gl_in[1].gl_Position.xyz - gl_in[0].gl_Position.xyz, gl_in[2].gl_Position.xyz - gl_in[0].gl_Position.xyz), 0.0f));
 	for (n = 0; n < gl_in.length(); n++) {
 		vec4 wp = inverse(view) * gl_in[n].gl_Position;
 		//sum per wave
-		wp.y += vertexHeight(wp.x,  wp.z, vec2(1.0f, 0.0), 0.5f, time, 1.0f, 0.4f);
-		wp.y += vertexHeight(wp.x,  wp.z, normalize(vec2(1.0f, 1.0f)), 1.0f, time, 1.0f, 0.5f);
+		wp.y += vertexHeight(wp.x, wp.z, vec2(1.0f, 0.0), 0.5f, time, 1.0f, 0.4f);
+		wp.y += vertexHeight(wp.x, wp.z, normalize(vec2(1.0f, 1.0f)), 1.0f, time, 1.0f, 0.5f);
+		wp.y += tidalHeight(wp.x, wp.z, time - tidal_start_time, 1.0f, 30.0f);
 		world_position = wp;
 		gs_vert_pos[n] = wp;
-		normal = normalize(view * (vertexNormal(wp.x,  wp.z, vec2(1.0f, 0.0), 0.5f, time, 1.0f, 0.4f) 
-		+ vertexNormal(wp.x,  wp.z, normalize(vec2(1.0f, 1.0f)), 1.0f, time, 1.0f, 0.5f)));
+		normal = normalize(view * 
+			(
+			tidalNormal(wp.x, wp.z, time - tidal_start_time, 1.0f, 30.0f)
+			+ vertexNormal(wp.x,  wp.z, vec2(1.0f, 0.0), 0.5f, time, 1.0f, 0.4f) 
+			+ vertexNormal(wp.x,  wp.z, normalize(vec2(1.0f, 1.0f)), 1.0f, time, 1.0f, 0.5f)
+			)
+		);
 		vec3 temp = vec3(0.0f, 0.0f, 0.0f);
 		temp[n] = 1.0f;
 		bary = temp;
@@ -412,7 +436,7 @@ bool toggleFaces = true;
 float tess_level_inner = 3.0f;
 float tess_level_outer = 3.0f;
 bool ocean_mode = false;
-
+bool save_time = false;
 
 void
 KeyCallback(GLFWwindow* window,
@@ -429,6 +453,8 @@ KeyCallback(GLFWwindow* window,
 	else if (key == GLFW_KEY_S && mods == GLFW_MOD_CONTROL && action == GLFW_RELEASE) {
 		// FIXME: save geometry to OBJ
 		save_obj = true;
+	} else if (key == GLFW_KEY_T && mods == GLFW_MOD_CONTROL && action == GLFW_RELEASE) {
+		save_time = true;
 	} else if (key == GLFW_KEY_W && action != GLFW_RELEASE) {
 		g_camera.strafe_forward(1);
 	} else if (key == GLFW_KEY_S && action != GLFW_RELEASE) {
@@ -1028,6 +1054,9 @@ int main(int argc, char* argv[])
 	GLint ocean_time_location = 0;
 	CHECK_GL_ERROR(ocean_time_location =
 			glGetUniformLocation(ocean_program_id, "time"));
+	GLint ocean_tidal_start_time_location = 0;
+	CHECK_GL_ERROR(ocean_tidal_start_time_location =
+			glGetUniformLocation(ocean_program_id, "tidal_start_time"));
 	// GLint ocean_skybox_location = 0;
 	// CHECK_GL_ERROR(ocean_skybox_location =
 	// 		glGetUniformLocation(ocean_skybox_id, "skybox"));
@@ -1038,6 +1067,7 @@ int main(int argc, char* argv[])
 	struct timespec startTime;
 	clock_gettime(CLOCK_REALTIME, &startTime);
 
+	float tidal_start_time = -100.0f;
 	glm::vec4 light_position = glm::vec4(-10.0f, 10.0f, 0.0f, 1.0f);
 	float aspect = 0.0f;
 	float theta = 0.0f;
@@ -1077,10 +1107,18 @@ int main(int argc, char* argv[])
 		// CHECK_GL_ERROR(glDrawElements(GL_TRIANGLES, obj_faces.size() * 3, GL_UNSIGNED_INT, 0));
 		glDepthMask(GL_TRUE);
 
-
+		struct timespec times;
+		clock_gettime(CLOCK_REALTIME, &times);
+		float t = (times.tv_sec - startTime.tv_sec) + (float(times.tv_nsec - startTime.tv_nsec))/BILLION;
+		
 		if(save_obj){
 			SaveObj("geometry.obj", obj_vertices, obj_faces);
 			save_obj = false;
+		}
+
+		if(save_time) {
+			tidal_start_time = t;
+			save_time = false;
 		}
 		// Switch to the Geometry VAO.
 		CHECK_GL_ERROR(glBindVertexArray(g_array_objects[kGeometryVao]));
@@ -1171,9 +1209,8 @@ int main(int argc, char* argv[])
 		CHECK_GL_ERROR(glUniform1i(ocean_wireframe_location, wireframe));
 		CHECK_GL_ERROR(glUniform1f(ocean_tessouter_location, tess_level_outer));
 		CHECK_GL_ERROR(glUniform1f(ocean_tessinner_location, tess_level_inner));
-		struct timespec times;
-		clock_gettime(CLOCK_REALTIME, &times);
-		float t = (times.tv_sec - startTime.tv_sec) + (float(times.tv_nsec - startTime.tv_nsec))/BILLION;
+		CHECK_GL_ERROR(glUniform1f(ocean_tidal_start_time_location, tidal_start_time));
+		
 		CHECK_GL_ERROR(glUniform1f(ocean_time_location, t));
 
 		// Draw our triangles.

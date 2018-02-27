@@ -188,7 +188,7 @@ void main()
 		vec4 avg = (gl_in[0].gl_Position + gl_in[1].gl_Position + gl_in[2].gl_Position + gl_in[3].gl_Position) * .25f;
 		vec4 distance = view * vec4(time - tidal_start_time, -2.0f, 0.0f, 1.0f);
 		float d = length(avg - distance);
-		float adapt = clamp(4 - d, 1.0f, 4.0f);
+		float adapt = clamp(7 - d, 1.0f, 6.0f);
 		gl_TessLevelInner[0] = tess_level_inner * adapt;
 		gl_TessLevelInner[1] = tess_level_inner * adapt;
 		gl_TessLevelOuter[0] = tess_level_outer * adapt;
@@ -239,7 +239,7 @@ vec4 vertexNormal(float x, float z, vec2 direction, float freq, float t, float s
 	float d = freq * amplitude * cos(dot(direction, vec2(x,z)) * freq + time * speed * freq);
 	float dx = direction.x * d;
 	float dz = direction.y * d;
-	return vec4(-dx, 1.0f, -dz, 0.0f);
+	return vec4(-dx, 0.0f, -dz, 0.0f);
 }
 
 float tidalHeight(float x, float z, float timePassed, float width, float height) {
@@ -250,7 +250,7 @@ float tidalHeight(float x, float z, float timePassed, float width, float height)
 vec4 tidalNormal(float x, float z, float timePassed, float width, float height) {
 	x -= timePassed;
 	float d = height * -exp(-(pow(x, 2) + pow(z, 2)) / (2 * pow(width, 2))) / (2 * 3.14159 * pow(width, 4));
-	return -vec4(x*d, 1.0f, z*d, 0.0f);
+	return vec4(-x*d, 0.0f, -z*d, 0.0f);
 	// return -vec4(cross(vec3(x * d, 1.0f, 0.0f), vec3(0.0f, 1.0f, z * d)), 0.0f);
 }
 
@@ -271,6 +271,7 @@ void main()
 			(tidalNormal(wp.x, wp.z, time - tidal_start_time, 1.0f, 30.0f))
 			+ vertexNormal(wp.x,  wp.z, vec2(1.0f, 0.0), 0.5f, time, 1.0f, 0.4f) 
 			+ vertexNormal(wp.x,  wp.z, normalize(vec2(1.0f, 1.0f)), 1.0f, time, 1.0f, 0.5f)
+			+ vec4(0, 1.0f, 0, 0)
 			)
 		);
 		vec3 temp = vec3(0.0f, 0.0f, 0.0f);

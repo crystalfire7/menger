@@ -295,6 +295,7 @@ flat in vec4 gs_vert_pos[3];
 uniform bool wireframe;
 uniform mat4 view;
 uniform vec4 light_position;
+uniform samplerCube skybox;
 out vec4 fragment_color;
 
 float distToLine(vec4 p, vec4 l1, vec4 l2){
@@ -322,7 +323,10 @@ void main()
 		vec4 specular = vec4(1.0,1.0,1.0,1.0) * pow(clamp(max(dot(v, r), 0.0f), 0.0f, 1.0f), 12);
 		vec4 ambient = vec4(0, 0, .2, 1.0);
 		// fragment_color = vec4(((inverse(view) * normal)).xyz, 1.0);
-		fragment_color = clamp(diffuse + specular, ambient, vec4(1.0,1.0,1.0,1.0));
+		vec4 reflective = texture(skybox, (inverse(view) * r).xyz);
+
+		// fragment_color = reflective;
+		fragment_color = clamp(0.2f * reflective + diffuse + specular, ambient, vec4(1.0,1.0,1.0,1.0));
 	}
 }
 )zzz";
@@ -330,14 +334,15 @@ void main()
 
 const char* skybox_vertex_shader =
 R"zzz(#version 400 core
-in vec4 vertex_position;
+in vec3 vertex_position;
 uniform mat4 view;
 uniform mat4 projection;
 out vec4 vs_world_pos;
 void main()
 {
-	vs_world_pos = vertex_position;
-	gl_Position = projection * view * vertex_position;
+	vs_world_pos = vec4(vertex_position, 1.0);
+	gl_Position = projection * view * vec4(vertex_position, 1.0);
+	// gl_Position = projection * view * vertex_position;
 
 }
 )zzz";
@@ -355,8 +360,8 @@ out vec4 fragment_color;
 
 void main()
 {
-	fragment_color = vec4(1.0, 0.0, 0.5, 1.0);
-	// fragment_color = texture(skybox, vs_world_pos.xyz);
+	// fragment_color = vec4(1.0, 0.0, 0.5, 1.0);
+	fragment_color = texture(skybox, vs_world_pos.xyz);
 }
 )zzz";
 
@@ -384,7 +389,7 @@ CreateOcean(std::vector<glm::vec4>& vertices,
 			vertices.push_back(glm::vec4(-20.0f + 2.5f * (i + 1), -2.0f, -20.0f + 2.5f * k, 1.0f));
 			vertices.push_back(glm::vec4(-20.0f + 2.5f * i, -2.0f, -20.0f + 2.5f * (k + 1), 1.0f));
 			vertices.push_back(glm::vec4(-20.0f + 2.5f * (i + 1), -2.0f, -20.0f + 2.5f * (k + 1), 1.0f));
-			indices.push_back(glm::uvec4(offset, offset + 1, offset + 3, offset + 2));
+			indices.push_back(glm::uvec4(offset, offset + 2, offset + 3, offset + 1));
 		}
 	}
 }
@@ -665,56 +670,69 @@ int main(int argc, char* argv[])
 				ocean_faces.data(), GL_STATIC_DRAW));
 
 // Switch to the Skybox VAO
-	CHECK_GL_ERROR(glBindVertexArray(g_array_objects[kSkyboxVao]));
+
+
+float sky_pts[] = {
+  -75.0f,  75.0f, -75.0f,
+  -75.0f, -75.0f, -75.0f,
+   75.0f, -75.0f, -75.0f,
+   75.0f, -75.0f, -75.0f,
+   75.0f,  75.0f, -75.0f,
+  -75.0f,  75.0f, -75.0f,
+  
+  -75.0f, -75.0f,  75.0f,
+  -75.0f, -75.0f, -75.0f,
+  -75.0f,  75.0f, -75.0f,
+  -75.0f,  75.0f, -75.0f,
+  -75.0f,  75.0f,  75.0f,
+  -75.0f, -75.0f,  75.0f,
+  
+   75.0f, -75.0f, -75.0f,
+   75.0f, -75.0f,  75.0f,
+   75.0f,  75.0f,  75.0f,
+   75.0f,  75.0f,  75.0f,
+   75.0f,  75.0f, -75.0f,
+   75.0f, -75.0f, -75.0f,
+   
+  -75.0f, -75.0f,  75.0f,
+  -75.0f,  75.0f,  75.0f,
+   75.0f,  75.0f,  75.0f,
+   75.0f,  75.0f,  75.0f,
+   75.0f, -75.0f,  75.0f,
+  -75.0f, -75.0f,  75.0f,
+  
+  -75.0f,  75.0f, -75.0f,
+   75.0f,  75.0f, -75.0f,
+   75.0f,  75.0f,  75.0f,
+   75.0f,  75.0f,  75.0f,
+  -75.0f,  75.0f,  75.0f,
+  -75.0f,  75.0f, -75.0f,
+  
+  -75.0f, -75.0f, -75.0f,
+  -75.0f, -75.0f,  75.0f,
+   75.0f, -75.0f, -75.0f,
+   75.0f, -75.0f, -75.0f,
+  -75.0f, -75.0f,  75.0f,
+   75.0f, -75.0f,  75.0f
+};
+
+	// VAO
+	
+	// VBO?
+	// CHECK_GL_ERROR(glBindVertexArray(g_array_objects[kSkyboxVao]));
 	CHECK_GL_ERROR(glGenBuffers(kNumVbos, &g_buffer_objects[kSkyboxVao][0]));
 	CHECK_GL_ERROR(glBindBuffer(GL_ARRAY_BUFFER, g_buffer_objects[kSkyboxVao][kVertexBuffer]));
-	float SIZE = 50.0f;
-	float sky_pts[] = {        
-	    -SIZE,  SIZE, -SIZE,
-	    -SIZE, -SIZE, -SIZE,
-	    SIZE, -SIZE, -SIZE,
-	     SIZE, -SIZE, -SIZE,
-	     SIZE,  SIZE, -SIZE,
-	    -SIZE,  SIZE, -SIZE,
-
-	    -SIZE, -SIZE,  SIZE,
-	    -SIZE, -SIZE, -SIZE,
-	    -SIZE,  SIZE, -SIZE,
-	    -SIZE,  SIZE, -SIZE,
-	    -SIZE,  SIZE,  SIZE,
-	    -SIZE, -SIZE,  SIZE,
-
-	     SIZE, -SIZE, -SIZE,
-	     SIZE, -SIZE,  SIZE,
-	     SIZE,  SIZE,  SIZE,
-	     SIZE,  SIZE,  SIZE,
-	     SIZE,  SIZE, -SIZE,
-	     SIZE, -SIZE, -SIZE,
-
-	    -SIZE, -SIZE,  SIZE,
-	    -SIZE,  SIZE,  SIZE,
-	     SIZE,  SIZE,  SIZE,
-	     SIZE,  SIZE,  SIZE,
-	     SIZE, -SIZE,  SIZE,
-	    -SIZE, -SIZE,  SIZE,
-
-	    -SIZE,  SIZE, -SIZE,
-	     SIZE,  SIZE, -SIZE,
-	     SIZE,  SIZE,  SIZE,
-	     SIZE,  SIZE,  SIZE,
-	    -SIZE,  SIZE,  SIZE,
-	    -SIZE,  SIZE, -SIZE,
-
-	    -SIZE, -SIZE, -SIZE,
-	    -SIZE, -SIZE,  SIZE,
-	     SIZE, -SIZE, -SIZE,
-	     SIZE, -SIZE, -SIZE,
-	    -SIZE, -SIZE,  SIZE,
-	     SIZE, -SIZE,  SIZE
-	};
 	CHECK_GL_ERROR(glBufferData(GL_ARRAY_BUFFER, 3 * 36 * sizeof(float), &sky_pts, GL_STATIC_DRAW));
 
+	CHECK_GL_ERROR(glBindVertexArray(g_array_objects[kSkyboxVao]));
+	CHECK_GL_ERROR(glEnableVertexAttribArray(0));
+	CHECK_GL_ERROR(glBindBuffer(GL_ARRAY_BUFFER, g_buffer_objects[kSkyboxVao][kVertexBuffer]));
+	CHECK_GL_ERROR(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL));
+    
 
+    
+ 
+	// CHECK_GL_ERROR(glBindVertexArray(0));
 
 	// more skybox
 
@@ -726,7 +744,7 @@ int main(int argc, char* argv[])
 	CHECK_GL_ERROR(glGenTextures(1, &cubemap_texture));
 	
 	Image px;
-	if(LoadJPEG("../cubemap_iceriver/posx.jpg", &px)){
+	if(LoadJPEG("../cubemap_brudslojan/posx.jpg", &px)){
 		CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
 		CHECK_GL_ERROR(glTexImage2D(
 			GL_TEXTURE_CUBE_MAP_POSITIVE_X,
@@ -743,7 +761,7 @@ int main(int argc, char* argv[])
 		std::cout << "LOADING POSX SKYBOX FAILED" << std::endl;
 	}
 	Image nx;
-	if(LoadJPEG("../cubemap_iceriver/negx.jpg", &nx)){
+	if(LoadJPEG("../cubemap_brudslojan/negx.jpg", &nx)){
 		CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
 		CHECK_GL_ERROR(glTexImage2D(
 			GL_TEXTURE_CUBE_MAP_NEGATIVE_X,
@@ -760,7 +778,7 @@ int main(int argc, char* argv[])
 		std::cout << "LOADING NEGX SKYBOX FAILED" << std::endl;
 	}
 	Image py;
-	if(LoadJPEG("../cubemap_iceriver/posy.jpg", &py)){
+	if(LoadJPEG("../cubemap_brudslojan/posy.jpg", &py)){
 		CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
 		CHECK_GL_ERROR(glTexImage2D(
 			GL_TEXTURE_CUBE_MAP_POSITIVE_Y,
@@ -777,7 +795,7 @@ int main(int argc, char* argv[])
 		std::cout << "LOADING POSY SKYBOX FAILED" << std::endl;
 	}
 	Image ny;
-	if(LoadJPEG("../cubemap_iceriver/negy.jpg", &ny)){
+	if(LoadJPEG("../cubemap_brudslojan/negy.jpg", &ny)){
 		CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
 		CHECK_GL_ERROR(glTexImage2D(
 			GL_TEXTURE_CUBE_MAP_NEGATIVE_Y,
@@ -794,7 +812,7 @@ int main(int argc, char* argv[])
 		std::cout << "LOADING NEGZ SKYBOX FAILED" << std::endl;
 	}
 	Image pz;
-	if(LoadJPEG("../cubemap_iceriver/posz.jpg", &pz)){
+	if(LoadJPEG("../cubemap_brudslojan/posz.jpg", &pz)){
 		CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
 		CHECK_GL_ERROR(glTexImage2D(
 			GL_TEXTURE_CUBE_MAP_POSITIVE_Z,
@@ -811,7 +829,7 @@ int main(int argc, char* argv[])
 		std::cout << "LOADING POSZ SKYBOX FAILED" << std::endl;
 	}
 	Image nz;
-	if(LoadJPEG("../cubemap_iceriver/negz.jpg", &nz)){
+	if(LoadJPEG("../cubemap_brudslojan/negz.jpg", &nz)){
 		CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
 		CHECK_GL_ERROR(glTexImage2D(
 			GL_TEXTURE_CUBE_MAP_NEGATIVE_Z,
@@ -999,7 +1017,7 @@ int main(int argc, char* argv[])
 // skybox program
 	GLuint skybox_program_id = 0;
 	CHECK_GL_ERROR(skybox_program_id = glCreateProgram());
-	CHECK_GL_ERROR(glAttachShader(skybox_program_id, vertex_shader_id));
+	CHECK_GL_ERROR(glAttachShader(skybox_program_id, skybox_vertex_shader_id));
 	CHECK_GL_ERROR(glAttachShader(skybox_program_id, skybox_fragment_shader_id));
 
 	// Bind attributes.
@@ -1097,19 +1115,37 @@ int main(int argc, char* argv[])
 
 		// skybox
 
-		CHECK_GL_ERROR(glBindVertexArray(g_array_objects[kSkyboxVao]));
-		CHECK_GL_ERROR(glBindBuffer(GL_ARRAY_BUFFER, g_buffer_objects[kSkyboxVao][kVertexBuffer]));
-		CHECK_GL_ERROR(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_buffer_objects[kSkyboxVao][kIndexBuffer]));
+		
+		// CHECK_GL_ERROR(glBindBuffer(GL_ARRAY_BUFFER, g_buffer_objects[kSkyboxVao][kVertexBuffer]));
+		// CHECK_GL_ERROR(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_buffer_objects[kSkyboxVao][kIndexBuffer]));
 		glDepthMask(GL_FALSE);
+		glDisable(GL_CULL_FACE);
+		glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+
 		CHECK_GL_ERROR(glUseProgram(skybox_program_id));
 		CHECK_GL_ERROR(glUniformMatrix4fv(skybox_projection_matrix_location, 1, GL_FALSE,
 					&projection_matrix[0][0]));
 		CHECK_GL_ERROR(glUniformMatrix4fv(skybox_view_matrix_location, 1, GL_FALSE,
 					&view_matrix[0][0]));
+		CHECK_GL_ERROR(glUniform1i(glGetUniformLocation(skybox_program_id, "skybox"), 0));
+
 		CHECK_GL_ERROR(glActiveTexture(GL_TEXTURE0));
 		CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
+	 
+		CHECK_GL_ERROR(glBindVertexArray(g_array_objects[kSkyboxVao]));
 		CHECK_GL_ERROR(glDrawArrays(GL_TRIANGLES, 0, 36));
-		// CHECK_GL_ERROR(glDrawElements(GL_TRIANGLES, obj_faces.size() * 3, GL_UNSIGNED_INT, 0));
+		// CHECK_GL_ERROR(glBindVertexArray(0));
+	 
+		// CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, 0));
+
+
+		// CHECK_GL_ERROR(glActiveTexture(GL_TEXTURE0));
+		// CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
+		// CHECK_GL_ERROR(glDrawArrays(GL_TRIANGLES, 0, 36));
+		// // CHECK_GL_ERROR(glDrawElements(GL_TRIANGLES, obj_faces.size() * 3, GL_UNSIGNED_INT, 0));
+		
+		CHECK_GL_ERROR(glUseProgram(program_id));
+		glEnable(GL_CULL_FACE);
 		glDepthMask(GL_TRUE);
 
 		struct timespec times;
@@ -1148,9 +1184,6 @@ int main(int argc, char* argv[])
 
 		}
 
-		
-		// Use our program.
-		CHECK_GL_ERROR(glUseProgram(program_id));
 
 
 		// Pass uniforms in.

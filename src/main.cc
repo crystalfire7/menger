@@ -260,8 +260,8 @@ void main()
 	for (n = 0; n < gl_in.length(); n++) {
 		vec4 wp = inverse(view) * gl_in[n].gl_Position;
 		//sum per wave
-		wp.y += vertexHeight(wp.x, wp.z, vec2(1.0f, 0.0), 0.5f, time, 1.0f, 0.4f);
-		wp.y += vertexHeight(wp.x, wp.z, normalize(vec2(1.0f, 1.0f)), 1.0f, time, 1.0f, 0.5f);
+		wp.y += vertexHeight(wp.x, wp.z, vec2(1.0f, 0.0), 0.5f, time, 2.0f, 0.4f);
+		wp.y += vertexHeight(wp.x, wp.z, normalize(vec2(1.0f, 1.0f)), 0.8f, time, 2.0f, 0.5f);
 		float tidalHeight = tidalHeight(wp.x, wp.z, time - tidal_start_time, 1.0f, 30.0f);
 		wp.y += tidalHeight;
 		world_position = wp;
@@ -269,8 +269,8 @@ void main()
 		normal = normalize(view * 
 			(
 			(tidalNormal(wp.x, wp.z, time - tidal_start_time, 1.0f, 30.0f))
-			+ vertexNormal(wp.x,  wp.z, vec2(1.0f, 0.0), 0.5f, time, 1.0f, 0.4f) 
-			+ vertexNormal(wp.x,  wp.z, normalize(vec2(1.0f, 1.0f)), 1.0f, time, 1.0f, 0.5f)
+			+ vertexNormal(wp.x,  wp.z, vec2(1.0f, 0.0), 0.5f, time, 2.0f, 0.4f) 
+			+ vertexNormal(wp.x,  wp.z, normalize(vec2(1.0f, 1.0f)), 0.8f, time, 2.0f, 0.5f)
 			+ vec4(0, 1.0f, 0, 0)
 			)
 		);
@@ -284,6 +284,38 @@ void main()
 	EndPrimitive();
 }
 )zzz";
+/*waveset 2
+void main()
+{
+	int n = 0;
+	for (n = 0; n < gl_in.length(); n++) {
+		vec4 wp = inverse(view) * gl_in[n].gl_Position;
+		//sum per wave
+		wp.y += vertexHeight(wp.x, wp.z, vec2(1.0f, 0.0), 0.5f, time, 2.0f, 0.3f);
+		wp.y += vertexHeight(wp.x, wp.z, normalize(vec2(0.9f, 1.0f)), 1.0f, time, 2.0f, 0.4f);
+		wp.y += vertexHeight(wp.x, wp.z, normalize(vec2(1.0f, 0.9f)), 1.5f, time, 1.0f, 0.2f);
+		float tidalHeight = tidalHeight(wp.x, wp.z, time - tidal_start_time, 1.0f, 30.0f);
+		wp.y += tidalHeight;
+		world_position = wp;
+		gs_vert_pos[n] = wp;
+		normal = normalize(view * 
+			(
+			(tidalNormal(wp.x, wp.z, time - tidal_start_time, 1.0f, 30.0f))
+			+ vertexNormal(wp.x,  wp.z, vec2(1.0f, 0.0), 0.5f, time, 2.0f, 0.3f) 
+			+ vertexNormal(wp.x,  wp.z, normalize(vec2(0.9f, 1.0f)), 1.0f, time, 2.0f, 0.4f)
+			+ vertexNormal(wp.x,  wp.z, normalize(vec2(1.0f, 0.9f)), 1.5f, time, 1.0f, 0.2f)
+			+ vec4(0, 1.0f, 0, 0)
+			)
+		);
+		vec3 temp = vec3(0.0f, 0.0f, 0.0f);
+		temp[n] = 1.0f;
+		bary = temp;
+		light_direction = vs_light_direction[n];
+		gl_Position = projection * view * wp;
+		EmitVertex();
+	}
+	EndPrimitive();
+}*/
 
 const char* ocean_fragment_shader =
 R"zzz(#version 400 core
@@ -296,6 +328,9 @@ uniform bool wireframe;
 uniform mat4 view;
 uniform vec4 light_position;
 uniform samplerCube skybox;
+uniform bool skybox_mode;
+uniform bool reflective;
+uniform bool transparent;
 out vec4 fragment_color;
 
 float distToLine(vec4 p, vec4 l1, vec4 l2){
@@ -313,20 +348,26 @@ void main()
 	} else if(wireframe && distToLine(world_position, gs_vert_pos[0], gs_vert_pos[1])<thiccness){
 		fragment_color = vec4(0, 1.0f, 0, 1.0f);
 	} else {
-		vec4 color = vec4(0.0, 0.467f, 0.745f, 1.0f);
+		vec4 color = vec4(0.0, 0.27f, 0.55f, 1.0f);
 		float dot_nl = dot(normalize(light_direction), normalize(normal));
 		dot_nl = clamp(dot_nl, 0.0, 1.0);
 		vec4 diffuse = clamp(dot_nl * color, 0.0, 1.0);
 		vec4 r = normalize(reflect(-light_direction, normal));
 		vec4 v = normalize(view * (inverse(view)[3] - world_position));
-		// vec4 specular = vec4(0.0,9)
+		
 		vec4 specular = vec4(1.0,1.0,1.0,1.0) * pow(clamp(max(dot(v, r), 0.0f), 0.0f, 1.0f), 12);
 		vec4 ambient = vec4(0, 0, .2, 1.0);
-		// fragment_color = vec4(((inverse(view) * normal)).xyz, 1.0);
-		vec4 reflective = texture(skybox, (inverse(view) * r).xyz);
-
-		// fragment_color = reflective;
-		fragment_color = clamp(0.2f * reflective + diffuse + specular, ambient, vec4(1.0,1.0,1.0,1.0));
+		vec4 temp = diffuse + specular;
+		if(skybox_mode) {
+			if(transparent) {
+				temp += .65f * texture(skybox, -(inverse(view) * v).xyz);
+			}
+			if(reflective) {
+				temp += .4f * texture(skybox, (r).xyz);
+			}	
+		}
+		temp[3] = 1.0f;
+		fragment_color = clamp(temp, ambient, vec4(1.0,1.0,1.0,1.0));
 	}
 }
 )zzz";
@@ -448,6 +489,10 @@ float tess_level_outer = 3.0f;
 bool ocean_mode = false;
 bool save_time = false;
 
+bool skybox_mode = true;
+bool reflective = true;
+bool transparent = true;
+
 void
 KeyCallback(GLFWwindow* window,
             int key,
@@ -463,6 +508,12 @@ KeyCallback(GLFWwindow* window,
 	else if (key == GLFW_KEY_S && mods == GLFW_MOD_CONTROL && action == GLFW_RELEASE) {
 		// FIXME: save geometry to OBJ
 		save_obj = true;
+	} else if (key == GLFW_KEY_Z && action == GLFW_RELEASE) {
+		skybox_mode = !skybox_mode;
+	} else if (key == GLFW_KEY_X && action == GLFW_RELEASE) {
+		transparent = !transparent;
+	} else if (key == GLFW_KEY_V && action == GLFW_RELEASE) {
+		reflective = !reflective;
 	} else if (key == GLFW_KEY_T && mods == GLFW_MOD_CONTROL && action == GLFW_RELEASE) {
 		save_time = true;
 	} else if (key == GLFW_KEY_W && action != GLFW_RELEASE) {
@@ -1080,6 +1131,15 @@ float sky_pts[] = {
 	GLint ocean_tidal_start_time_location = 0;
 	CHECK_GL_ERROR(ocean_tidal_start_time_location =
 			glGetUniformLocation(ocean_program_id, "tidal_start_time"));
+	GLint ocean_skybox_mode_location = 0;
+	CHECK_GL_ERROR(ocean_skybox_mode_location =
+			glGetUniformLocation(ocean_program_id, "skybox_mode"));
+	GLint ocean_reflective_location = 0;
+	CHECK_GL_ERROR(ocean_reflective_location =
+			glGetUniformLocation(ocean_program_id, "reflective"));
+	GLint ocean_transparent_location = 0;
+	CHECK_GL_ERROR(ocean_transparent_location =
+			glGetUniformLocation(ocean_program_id, "transparent"));
 	// GLint ocean_skybox_location = 0;
 	// CHECK_GL_ERROR(ocean_skybox_location =
 	// 		glGetUniformLocation(ocean_skybox_id, "skybox"));
@@ -1115,34 +1175,24 @@ float sky_pts[] = {
 
 		// skybox
 
-		
-		// CHECK_GL_ERROR(glBindBuffer(GL_ARRAY_BUFFER, g_buffer_objects[kSkyboxVao][kVertexBuffer]));
-		// CHECK_GL_ERROR(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_buffer_objects[kSkyboxVao][kIndexBuffer]));
-		glDepthMask(GL_FALSE);
-		glDisable(GL_CULL_FACE);
-		glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+		if(skybox_mode) {
+			glDepthMask(GL_FALSE);
+			glDisable(GL_CULL_FACE);
+			glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
-		CHECK_GL_ERROR(glUseProgram(skybox_program_id));
-		CHECK_GL_ERROR(glUniformMatrix4fv(skybox_projection_matrix_location, 1, GL_FALSE,
-					&projection_matrix[0][0]));
-		CHECK_GL_ERROR(glUniformMatrix4fv(skybox_view_matrix_location, 1, GL_FALSE,
-					&view_matrix[0][0]));
-		CHECK_GL_ERROR(glUniform1i(glGetUniformLocation(skybox_program_id, "skybox"), 0));
-
-		CHECK_GL_ERROR(glActiveTexture(GL_TEXTURE0));
-		CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
-	 
-		CHECK_GL_ERROR(glBindVertexArray(g_array_objects[kSkyboxVao]));
-		CHECK_GL_ERROR(glDrawArrays(GL_TRIANGLES, 0, 36));
-		// CHECK_GL_ERROR(glBindVertexArray(0));
-	 
-		// CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, 0));
-
-
-		// CHECK_GL_ERROR(glActiveTexture(GL_TEXTURE0));
-		// CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
-		// CHECK_GL_ERROR(glDrawArrays(GL_TRIANGLES, 0, 36));
-		// // CHECK_GL_ERROR(glDrawElements(GL_TRIANGLES, obj_faces.size() * 3, GL_UNSIGNED_INT, 0));
+			CHECK_GL_ERROR(glUseProgram(skybox_program_id));
+			CHECK_GL_ERROR(glUniformMatrix4fv(skybox_projection_matrix_location, 1, GL_FALSE,
+						&projection_matrix[0][0]));
+			CHECK_GL_ERROR(glUniformMatrix4fv(skybox_view_matrix_location, 1, GL_FALSE,
+						&view_matrix[0][0]));
+			CHECK_GL_ERROR(glUniform1i(glGetUniformLocation(skybox_program_id, "skybox"), 0));
+			CHECK_GL_ERROR(glActiveTexture(GL_TEXTURE0));
+			CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
+		 
+			CHECK_GL_ERROR(glBindVertexArray(g_array_objects[kSkyboxVao]));
+			CHECK_GL_ERROR(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL));
+			CHECK_GL_ERROR(glDrawArrays(GL_TRIANGLES, 0, 36));
+		}
 		
 		CHECK_GL_ERROR(glUseProgram(program_id));
 		glEnable(GL_CULL_FACE);
@@ -1248,7 +1298,10 @@ float sky_pts[] = {
 		CHECK_GL_ERROR(glUniform1f(ocean_tessouter_location, tess_level_outer));
 		CHECK_GL_ERROR(glUniform1f(ocean_tessinner_location, tess_level_inner));
 		CHECK_GL_ERROR(glUniform1f(ocean_tidal_start_time_location, tidal_start_time));
-		
+		CHECK_GL_ERROR(glUniform1i(ocean_skybox_mode_location, skybox_mode));
+		CHECK_GL_ERROR(glUniform1i(ocean_reflective_location, reflective));
+		CHECK_GL_ERROR(glUniform1i(ocean_transparent_location, transparent));
+
 		CHECK_GL_ERROR(glUniform1f(ocean_time_location, t));
 
 		// Draw our triangles.

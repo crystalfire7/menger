@@ -18,9 +18,9 @@ public:
 	bool fps = true;
 private:
 	float camera_distance_ = 10.0f * glm::sqrt(2.0f);
-	glm::vec3 look_ = glm::normalize(glm::vec3(10.0f, -10.0f, 0.0f));
+	glm::vec3 look_ = glm::normalize(glm::vec3(0.0f, -10.0f, -10.0f));
 	glm::vec3 up_ = glm::vec3(0.0f, 1.0f, 0.0f);
-	glm::vec3 eye_ = glm::vec3(-10.0f, 10.0f, 0);
+	glm::vec3 eye_ = glm::vec3(0, 10.0f, 10.0f);
 	// Note: you may need additional member variables
 };
 

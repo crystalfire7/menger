@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <unistd.h>
 
 #include <time.h>
 
@@ -385,7 +386,7 @@ void main()
 			}
 			if(reflective) {
 				//temp += .4f * texture(skybox, (r).xyz);
-				temp += .25f * texture(skybox, -(inverse(view) * reflect(v, normal)).xyz);
+				temp += .4f * texture(skybox, -(inverse(view) * reflect(v, normal)).xyz);
 			}	
 		}
 		temp[3] = 1.0f;
@@ -653,6 +654,17 @@ MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 
 int main(int argc, char* argv[])
 {
+	int i = 0;
+	bool has_cubemap = false;
+	std::string cubemape_folder;
+
+	while ((i = getopt(argc, argv, "c:")) != EOF) {
+		if(i == 'c') {
+			has_cubemap = true;
+			cubemape_folder = optarg;
+		}
+	}
+
 	std::string window_title = "Menger";
 	if (!glfwInit()) exit(EXIT_FAILURE);
 	g_menger = std::make_shared<Menger>();
@@ -824,120 +836,123 @@ float sky_pts[] = {
 
 	// more skybox
 
-
-
 	CHECK_GL_ERROR(glActiveTexture(GL_TEXTURE0));
 	// CHECK_GL_ERROR(glEnable(GL_TEXTURE_CUBE_MAP));
 	GLuint cubemap_texture;
 	CHECK_GL_ERROR(glGenTextures(1, &cubemap_texture));
+
+
+	if(has_cubemap){
+
 	
-	Image px;
-	if(LoadJPEG("../cubemap_brudslojan/posx.jpg", &px)){
-		CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
-		CHECK_GL_ERROR(glTexImage2D(
-			GL_TEXTURE_CUBE_MAP_POSITIVE_X,
-			0,
-			GL_RGBA,
-			px.width,
-			px.height,
-			0,
-			GL_RGB,
-			GL_UNSIGNED_BYTE,
-			px.bytes.data()
-			));
-	}else{
-		std::cout << "LOADING POSX SKYBOX FAILED" << std::endl;
-	}
-	Image nx;
-	if(LoadJPEG("../cubemap_brudslojan/negx.jpg", &nx)){
-		CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
-		CHECK_GL_ERROR(glTexImage2D(
-			GL_TEXTURE_CUBE_MAP_NEGATIVE_X,
-			0,
-			GL_RGBA,
-			px.width,
-			px.height,
-			0,
-			GL_RGB,
-			GL_UNSIGNED_BYTE,
-			nx.bytes.data()
-			));
-	}else{
-		std::cout << "LOADING NEGX SKYBOX FAILED" << std::endl;
-	}
-	Image py;
-	if(LoadJPEG("../cubemap_brudslojan/posy.jpg", &py)){
-		CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
-		CHECK_GL_ERROR(glTexImage2D(
-			GL_TEXTURE_CUBE_MAP_POSITIVE_Y,
-			0,
-			GL_RGBA,
-			px.width,
-			px.height,
-			0,
-			GL_RGB,
-			GL_UNSIGNED_BYTE,
-			py.bytes.data()
-			));
-	}else{
-		std::cout << "LOADING POSY SKYBOX FAILED" << std::endl;
-	}
-	Image ny;
-	if(LoadJPEG("../cubemap_brudslojan/negy.jpg", &ny)){
-		CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
-		CHECK_GL_ERROR(glTexImage2D(
-			GL_TEXTURE_CUBE_MAP_NEGATIVE_Y,
-			0,
-			GL_RGBA,
-			px.width,
-			px.height,
-			0,
-			GL_RGB,
-			GL_UNSIGNED_BYTE,
-			ny.bytes.data()
-			));
-	}else{
-		std::cout << "LOADING NEGZ SKYBOX FAILED" << std::endl;
-	}
-	Image pz;
-	if(LoadJPEG("../cubemap_brudslojan/posz.jpg", &pz)){
-		CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
-		CHECK_GL_ERROR(glTexImage2D(
-			GL_TEXTURE_CUBE_MAP_POSITIVE_Z,
-			0,
-			GL_RGBA,
-			px.width,
-			px.height,
-			0,
-			GL_RGB,
-			GL_UNSIGNED_BYTE,
-			pz.bytes.data()
-			));
-	}else{
-		std::cout << "LOADING POSZ SKYBOX FAILED" << std::endl;
-	}
-	Image nz;
-	if(LoadJPEG("../cubemap_brudslojan/negz.jpg", &nz)){
-		CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
-		CHECK_GL_ERROR(glTexImage2D(
-			GL_TEXTURE_CUBE_MAP_NEGATIVE_Z,
-			0,
-			GL_RGBA,
-			px.width,
-			px.height,
-			0,
-			GL_RGB,
-			GL_UNSIGNED_BYTE,
-			nz.bytes.data()
-			));
-	}else{
-		std::cout << "LOADING NEGZ SKYBOX FAILED" << std::endl;
-	}
-	CHECK_GL_ERROR(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
-  	CHECK_GL_ERROR(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
-  	CHECK_GL_ERROR(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE));
-  	CHECK_GL_ERROR(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
-  	CHECK_GL_ERROR(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+		Image px;
+		if(LoadJPEG(cubemape_folder + "posx.jpg", &px)){
+			CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
+			CHECK_GL_ERROR(glTexImage2D(
+				GL_TEXTURE_CUBE_MAP_POSITIVE_X,
+				0,
+				GL_RGBA,
+				px.width,
+				px.height,
+				0,
+				GL_RGB,
+				GL_UNSIGNED_BYTE,
+				px.bytes.data()
+				));
+		}else{
+			std::cout << "LOADING POSX SKYBOX FAILED" << std::endl;
+		}
+		Image nx;
+		if(LoadJPEG(cubemape_folder + "negx.jpg", &nx)){
+			CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
+			CHECK_GL_ERROR(glTexImage2D(
+				GL_TEXTURE_CUBE_MAP_NEGATIVE_X,
+				0,
+				GL_RGBA,
+				px.width,
+				px.height,
+				0,
+				GL_RGB,
+				GL_UNSIGNED_BYTE,
+				nx.bytes.data()
+				));
+		}else{
+			std::cout << "LOADING NEGX SKYBOX FAILED" << std::endl;
+		}
+		Image py;
+		if(LoadJPEG(cubemape_folder + "posy.jpg", &py)){
+			CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
+			CHECK_GL_ERROR(glTexImage2D(
+				GL_TEXTURE_CUBE_MAP_POSITIVE_Y,
+				0,
+				GL_RGBA,
+				px.width,
+				px.height,
+				0,
+				GL_RGB,
+				GL_UNSIGNED_BYTE,
+				py.bytes.data()
+				));
+		}else{
+			std::cout << "LOADING POSY SKYBOX FAILED" << std::endl;
+		}
+		Image ny;
+		if(LoadJPEG(cubemape_folder + "negy.jpg", &ny)){
+			CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
+			CHECK_GL_ERROR(glTexImage2D(
+				GL_TEXTURE_CUBE_MAP_NEGATIVE_Y,
+				0,
+				GL_RGBA,
+				px.width,
+				px.height,
+				0,
+				GL_RGB,
+				GL_UNSIGNED_BYTE,
+				ny.bytes.data()
+				));
+		}else{
+			std::cout << "LOADING NEGZ SKYBOX FAILED" << std::endl;
+		}
+		Image pz;
+		if(LoadJPEG(cubemape_folder + "posz.jpg", &pz)){
+			CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
+			CHECK_GL_ERROR(glTexImage2D(
+				GL_TEXTURE_CUBE_MAP_POSITIVE_Z,
+				0,
+				GL_RGBA,
+				px.width,
+				px.height,
+				0,
+				GL_RGB,
+				GL_UNSIGNED_BYTE,
+				pz.bytes.data()
+				));
+		}else{
+			std::cout << "LOADING POSZ SKYBOX FAILED" << std::endl;
+		}
+		Image nz;
+		if(LoadJPEG(cubemape_folder + "negz.jpg", &nz)){
+			CHECK_GL_ERROR(glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture));
+			CHECK_GL_ERROR(glTexImage2D(
+				GL_TEXTURE_CUBE_MAP_NEGATIVE_Z,
+				0,
+				GL_RGBA,
+				px.width,
+				px.height,
+				0,
+				GL_RGB,
+				GL_UNSIGNED_BYTE,
+				nz.bytes.data()
+				));
+		}else{
+			std::cout << "LOADING NEGZ SKYBOX FAILED" << std::endl;
+		}
+		CHECK_GL_ERROR(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+	  	CHECK_GL_ERROR(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+	  	CHECK_GL_ERROR(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE));
+	  	CHECK_GL_ERROR(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+	  	CHECK_GL_ERROR(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+  }
 
 
 

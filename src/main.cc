@@ -132,7 +132,22 @@ void main()
 		vec4 color = vec4(f, f, f, 1.0);
 		float dot_nl = dot(normalize(light_direction), normalize(normal));
 		dot_nl = clamp(dot_nl, 0.0, 1.0);
-		fragment_color = clamp(dot_nl * color, 0.0, 1.0);
+		vec4 tempColor = clamp(dot_nl * color, 0.0, 1.0);
+
+		vec4 lightToWorld = normalize(world_position - light_position);
+		float denTop = dot(lightToWorld.xyz, vec3(0, 1.0f, 0));
+		float denSide = dot(lightToWorld.xyz, vec3(1.0f, 0, 0));
+		if(denTop != 0 && denSide != 0) {
+			float tTop = dot(vec3(0, .5f, 0) - light_position.xyz, vec3(0, 1.0f, 0)) / denTop;
+			float tSide = dot(vec3(-.5f, 0, 0) - light_position.xyz, vec3(1.0f, 0, 0)) / denSide;
+			
+			vec4 intersectTop = light_position + tTop * lightToWorld;
+			vec4 intersectSide = light_position + tSide * lightToWorld;
+			if((abs(intersectTop.x) < .5f && abs(intersectTop.z) < .5f) || (abs(intersectSide.y) < .5f && abs(intersectSide.z) < .5f)) {
+				tempColor *= .4f;
+			}
+		}
+		fragment_color = tempColor;
 	}
 }
 )zzz";
@@ -266,6 +281,7 @@ void main()
 		wp.y += tidalHeight;
 		world_position = wp;
 		gs_vert_pos[n] = wp;
+		// normal = normalize(view * vec4(0, 1.0f, 0, 0));
 		normal = normalize(view * 
 			(
 			(tidalNormal(wp.x, wp.z, time - tidal_start_time, 1.0f, 30.0f))
@@ -354,20 +370,41 @@ void main()
 		vec4 diffuse = clamp(dot_nl * color, 0.0, 1.0);
 		vec4 r = normalize(reflect(-light_direction, normal));
 		vec4 v = normalize(view * (inverse(view)[3] - world_position));
-		
-		vec4 specular = vec4(1.0,1.0,1.0,1.0) * pow(clamp(max(dot(v, r), 0.0f), 0.0f, 1.0f), 12);
+
+		vec4 specular = vec4(1.0,1.0,1.0,1.0) * pow(clamp(max(dot(v, r), 0.0f), 0.0f, 1.0f), 24);
 		vec4 ambient = vec4(0, 0, .2, 1.0);
 		vec4 temp = diffuse + specular;
 		if(skybox_mode) {
 			if(transparent) {
-				temp += .65f * texture(skybox, -(inverse(view) * v).xyz);
+				vec4 refract = refract(-v, normal, .9f);
+				if(isnan(refract.x)) {
+					temp += .4f * texture(skybox, -(inverse(view) * reflect(v, normal)).xyz);
+				} else {
+					temp += .8f * texture(skybox, (inverse(view) * refract).xyz);
+				}
 			}
 			if(reflective) {
-				temp += .4f * texture(skybox, (r).xyz);
+				//temp += .4f * texture(skybox, (r).xyz);
+				temp += .25f * texture(skybox, -(inverse(view) * reflect(v, normal)).xyz);
 			}	
 		}
 		temp[3] = 1.0f;
-		fragment_color = clamp(temp, ambient, vec4(1.0,1.0,1.0,1.0));
+		vec4 tempColor = clamp(temp, ambient, vec4(1.0,1.0,1.0,1.0));
+		
+		vec4 lightToWorld = normalize(world_position - light_position);
+		float denTop = dot(lightToWorld.xyz, vec3(0, 1.0f, 0));
+		float denSide = dot(lightToWorld.xyz, vec3(1.0f, 0, 0));
+		if(denTop != 0 && denSide != 0) {
+			float tTop = dot(vec3(0, .5f, 0) - light_position.xyz, vec3(0, 1.0f, 0)) / denTop;
+			float tSide = dot(vec3(-.5f, 0, 0) - light_position.xyz, vec3(1.0f, 0, 0)) / denSide;
+			
+			vec4 intersectTop = light_position + tTop * lightToWorld;
+			vec4 intersectSide = light_position + tSide * lightToWorld;
+			if((abs(intersectTop.x) < .5f && abs(intersectTop.z) < .5f) || (abs(intersectSide.y) < .5f && abs(intersectSide.z) < .5f)) {
+				tempColor *= .4f;
+			}
+		}
+		fragment_color = tempColor;
 	}
 }
 )zzz";
@@ -381,8 +418,9 @@ uniform mat4 projection;
 out vec4 vs_world_pos;
 void main()
 {
-	vs_world_pos = vec4(vertex_position, 1.0);
-	gl_Position = projection * view * vec4(vertex_position, 1.0);
+	vec4 eye_pos = inverse(view)[3];
+	vs_world_pos = vec4(vertex_position, 1.0f);
+	gl_Position = projection * view * vec4(vertex_position + eye_pos.xyz, 1.0f);
 	// gl_Position = projection * view * vertex_position;
 
 }
@@ -401,7 +439,6 @@ out vec4 fragment_color;
 
 void main()
 {
-	// fragment_color = vec4(1.0, 0.0, 0.5, 1.0);
 	fragment_color = texture(skybox, vs_world_pos.xyz);
 }
 )zzz";
